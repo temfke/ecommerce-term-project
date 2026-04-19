@@ -1,0 +1,127 @@
+<div class="auth-page">
+  <div class="auth-card">
+    <div class="auth-header">
+      <h1 class="brand">DataPulse</h1>
+      <p class="subtitle">Create your account</p>
+    </div>
+
+    @if (error()) {
+      <div class="error-alert" role="alert">{{ error() }}</div>
+    }
+
+    <form [formGroup]="form" (ngSubmit)="onSubmit()" class="auth-form">
+      <div class="form-row">
+        <div class="form-group">
+          <label for="firstName">First Name</label>
+          <input
+            id="firstName"
+            type="text"
+            formControlName="firstName"
+            placeholder="John"
+            autocomplete="given-name"
+            [attr.aria-invalid]="form.controls.firstName.touched && form.controls.firstName.invalid" />
+          @if (form.controls.firstName.touched && form.controls.firstName.errors?.['required']) {
+            <span class="field-error" role="alert">First name is required</span>
+          }
+        </div>
+
+        <div class="form-group">
+          <label for="lastName">Last Name</label>
+          <input
+            id="lastName"
+            type="text"
+            formControlName="lastName"
+            placeholder="Doe"
+            autocomplete="family-name"
+            [attr.aria-invalid]="form.controls.lastName.touched && form.controls.lastName.invalid" />
+          @if (form.controls.lastName.touched && form.controls.lastName.errors?.['required']) {
+            <span class="field-error" role="alert">Last name is required</span>
+          }
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="reg-email">Email</label>
+        <input
+          id="reg-email"
+          type="email"
+          formControlName="email"
+          placeholder="you@example.com"
+          autocomplete="email"
+          [attr.aria-invalid]="form.controls.email.touched && form.controls.email.invalid" />
+        @if (form.controls.email.touched && form.controls.email.errors) {
+          <span class="field-error" role="alert">
+            @if (form.controls.email.errors['required']) {
+              Email is required
+            } @else if (form.controls.email.errors['email']) {
+              Enter a valid email
+            }
+          </span>
+        }
+      </div>
+
+      <div class="form-group">
+        <label for="reg-password">Password</label>
+        <input
+          id="reg-password"
+          type="password"
+          formControlName="password"
+          placeholder="••••••••"
+          autocomplete="new-password"
+          [attr.aria-invalid]="form.controls.password.touched && form.controls.password.invalid" />
+        @if (form.controls.password.touched && form.controls.password.errors) {
+          <span class="field-error" role="alert">
+            @if (form.controls.password.errors['required']) {
+              Password is required
+            } @else if (form.controls.password.errors['minlength']) {
+              Minimum 6 characters
+            }
+          </span>
+        }
+      </div>
+
+      <div class="form-group">
+        <label for="role">Account Type</label>
+        <select id="role" formControlName="role" aria-label="Select account type">
+          @for (r of roles; track r) {
+            <option [value]="r">{{ r === 'INDIVIDUAL' ? 'Individual' : 'Corporate' }}</option>
+          }
+        </select>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="gender">Gender <span class="optional">(optional)</span></label>
+          <select id="gender" formControlName="gender" aria-label="Select gender">
+            <option value="">Prefer not to say</option>
+            <option value="MALE">Male</option>
+            <option value="FEMALE">Female</option>
+            <option value="OTHER">Other</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="phone">Phone <span class="optional">(optional)</span></label>
+          <input
+            id="phone"
+            type="tel"
+            formControlName="phone"
+            placeholder="+1 (555) 000-0000"
+            autocomplete="tel" />
+        </div>
+      </div>
+
+      <button type="submit" class="submit-btn" [disabled]="loading()">
+        @if (loading()) {
+          Creating account...
+        } @else {
+          Create Account
+        }
+      </button>
+    </form>
+
+    <p class="auth-footer">
+      Already have an account? <a routerLink="/login">Sign in</a>
+    </p>
+  </div>
+</div>

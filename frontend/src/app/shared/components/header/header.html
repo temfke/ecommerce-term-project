@@ -1,0 +1,18 @@
+<header class="header" role="banner">
+  <div class="header-left">
+    <h1 class="page-title">E-Commerce Analytics</h1>
+  </div>
+
+  <div class="header-right">
+    <span class="role-badge">{{ roleBadge() }}</span>
+
+    <a routerLink="/profile" class="profile-link" aria-label="Go to profile settings">
+      <div class="avatar" aria-hidden="true">{{ initials() }}</div>
+      <span class="user-name">{{ displayName() }}</span>
+    </a>
+
+    <button class="logout-btn" (click)="logout()" aria-label="Log out">
+      Logout
+    </button>
+  </div>
+</header>

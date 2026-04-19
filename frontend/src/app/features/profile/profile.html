@@ -1,0 +1,71 @@
+<div class="profile-page">
+  @if (loading()) {
+    <div class="loading" role="status"><span>Loading profile...</span></div>
+  } @else if (user()) {
+    <div class="profile-card">
+      <div class="profile-header">
+        <div class="avatar-large" aria-hidden="true">{{ initials() }}</div>
+        <div class="profile-info">
+          <h2>{{ user()!.firstName }} {{ user()!.lastName }}</h2>
+          <p class="email">{{ user()!.email }}</p>
+          <span class="role-badge">{{ user()!.role }}</span>
+        </div>
+      </div>
+
+      @if (success()) {
+        <div class="success-alert" role="status">{{ success() }}</div>
+      }
+      @if (error()) {
+        <div class="error-alert" role="alert">{{ error() }}</div>
+      }
+
+      <form [formGroup]="form" (ngSubmit)="onSubmit()" class="profile-form">
+        <div class="form-row">
+          <div class="form-group">
+            <label for="pf-first">First Name</label>
+            <input id="pf-first" formControlName="firstName" [attr.readonly]="!editing() ? '' : null" />
+          </div>
+          <div class="form-group">
+            <label for="pf-last">Last Name</label>
+            <input id="pf-last" formControlName="lastName" [attr.readonly]="!editing() ? '' : null" />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="pf-email">Email</label>
+          <input id="pf-email" formControlName="email" />
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="pf-phone">Phone</label>
+            <input id="pf-phone" formControlName="phone" [attr.readonly]="!editing() ? '' : null" placeholder="Not set" />
+          </div>
+          <div class="form-group">
+            <label for="pf-gender">Gender</label>
+            <select id="pf-gender" formControlName="gender" [attr.disabled]="!editing() ? '' : null">
+              <option value="">Prefer not to say</option>
+              <option value="MALE">Male</option>
+              <option value="FEMALE">Female</option>
+              <option value="OTHER">Other</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="profile-actions">
+          @if (editing()) {
+            <button type="button" class="btn-secondary" (click)="cancelEdit()">Cancel</button>
+            <button type="submit" class="btn-primary" [disabled]="saving()">
+              @if (saving()) { Saving... } @else { Save Changes }
+            </button>
+          } @else {
+            <button type="button" class="btn-primary" (click)="startEdit()">Edit Profile</button>
+            <button type="button" class="btn-danger" (click)="logout()">Logout</button>
+          }
+        </div>
+      </form>
+    </div>
+  } @else {
+    <div class="empty-state"><p>Could not load profile.</p></div>
+  }
+</div>

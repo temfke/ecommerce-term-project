@@ -1,0 +1,16 @@
+@use '../shared' as *;
+
+.success-alert {
+  padding: 12px 16px;
+  margin-bottom: 20px;
+  border-radius: 8px;
+  background: rgba(0, 184, 148, 0.1);
+  border: 1px solid rgba(0, 184, 148, 0.3);
+  color: #00b894;
+  font-size: 0.85rem;
+}
+
+.card-date {
+  font-size: 0.78rem;
+  color: #666;
+}

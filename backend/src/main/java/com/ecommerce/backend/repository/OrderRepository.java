@@ -1,0 +1,28 @@
+package com.ecommerce.backend.repository;
+
+import com.ecommerce.backend.entity.Order;
+import com.ecommerce.backend.enums.OrderStatus;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.List;
+
+public interface OrderRepository extends JpaRepository<Order, Long> {
+    List<Order> findByUserId(Long userId);
+    List<Order> findByStoreId(Long storeId);
+    List<Order> findByStoreIdAndStatus(Long storeId, OrderStatus status);
+    List<Order> findByUserIdAndStatus(Long userId, OrderStatus status);
+    long countByStoreId(Long storeId);
+    long countByStatus(OrderStatus status);
+
+    @Query("SELECT COALESCE(SUM(o.grandTotal), 0) FROM Order o WHERE o.store.id = :storeId AND o.status <> 'CANCELLED'")
+    BigDecimal getTotalRevenueByStoreId(Long storeId);
+
+    @Query("SELECT COALESCE(SUM(o.grandTotal), 0) FROM Order o WHERE o.status <> 'CANCELLED'")
+    BigDecimal getTotalRevenue();
+
+    List<Order> findByCreatedAtBetween(LocalDateTime start, LocalDateTime end);
+    List<Order> findByStoreIdAndCreatedAtBetween(Long storeId, LocalDateTime start, LocalDateTime end);
+}

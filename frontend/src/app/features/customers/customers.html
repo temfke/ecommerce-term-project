@@ -1,0 +1,55 @@
+<div class="page">
+  <div class="page-header">
+    <h2>Customers</h2>
+    <div class="header-actions">
+      <select
+        class="search-input"
+        (change)="onFilterChange($any($event.target).value)"
+        aria-label="Filter by role">
+        <option value="">All Roles</option>
+        <option value="INDIVIDUAL">Individual</option>
+        <option value="CORPORATE">Corporate</option>
+        <option value="ADMIN">Admin</option>
+      </select>
+    </div>
+  </div>
+
+  @if (loading()) {
+    <div class="loading" role="status"><span>Loading customers...</span></div>
+  } @else if (users().length === 0) {
+    <div class="empty-state"><p>No customers found.</p></div>
+  } @else {
+    <div class="table-wrap" role="region" aria-label="Customers table" tabindex="0">
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Email</th>
+            <th>Role</th>
+            <th>Phone</th>
+            <th>Status</th>
+            <th>Joined</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (u of users(); track u.id) {
+            <tr>
+              <td>{{ u.firstName }} {{ u.lastName }}</td>
+              <td>{{ u.email }}</td>
+              <td><span class="status-badge" [class]="u.role.toLowerCase()">{{ u.role }}</span></td>
+              <td>{{ u.phone ?? '—' }}</td>
+              <td>
+                @if (u.enabled) {
+                  <span class="status-badge open">Active</span>
+                } @else {
+                  <span class="status-badge suspended">Disabled</span>
+                }
+              </td>
+              <td>{{ u.createdAt | date:'mediumDate' }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+</div>

@@ -1,0 +1,92 @@
+<div class="page">
+  <div class="page-header">
+    <h2>Analytics</h2>
+    @if (stores().length > 0) {
+      <div class="header-actions">
+        <label for="a-store" class="sr-only">Select store</label>
+        <select id="a-store" class="search-input" (change)="selectStore(+$any($event.target).value)">
+          @for (store of stores(); track store.id) {
+            <option [value]="store.id" [selected]="store.id === selectedStoreId()">{{ store.name }}</option>
+          }
+        </select>
+      </div>
+    }
+  </div>
+
+  @if (loading()) {
+    <div class="loading" role="status"><span>Loading analytics...</span></div>
+  } @else if (stats()) {
+    <div class="analytics-grid">
+      <div class="metric-card wide">
+        <h3>Revenue Overview</h3>
+        <div class="metric-row">
+          <div class="metric">
+            <span class="metric-label">Total Revenue</span>
+            <span class="metric-value revenue">${{ stats()!.totalRevenue | number:'1.2-2' }}</span>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Avg per Order</span>
+            <span class="metric-value">${{ revenuePerOrder() | number:'1.2-2' }}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="metric-card">
+        <h3>Orders</h3>
+        <div class="metric">
+          <span class="metric-value large">{{ stats()!.totalOrders | number }}</span>
+          <span class="metric-label">Total Orders</span>
+        </div>
+        <div class="metric-breakdown">
+          <div class="breakdown-item">
+            <span class="dot pending"></span>
+            <span>Pending: {{ stats()!.pendingOrders }}</span>
+          </div>
+          <div class="breakdown-item">
+            <span class="dot shipped"></span>
+            <span>Shipped: {{ stats()!.shippedOrders }}</span>
+          </div>
+          <div class="breakdown-item">
+            <span class="dot delivered"></span>
+            <span>Delivered: {{ stats()!.deliveredOrders }}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="metric-card">
+        <h3>Fulfillment</h3>
+        <div class="metric">
+          <span class="metric-value large">{{ fulfillmentRate() | number:'1.1-1' }}%</span>
+          <span class="metric-label">Delivery Rate</span>
+        </div>
+        <div class="progress-bar" role="progressbar" [attr.aria-valuenow]="fulfillmentRate()" aria-valuemin="0" aria-valuemax="100">
+          <div class="progress-fill" [style.width.%]="fulfillmentRate()"></div>
+        </div>
+      </div>
+
+      <div class="metric-card">
+        <h3>Products & Customers</h3>
+        <div class="metric-row">
+          <div class="metric">
+            <span class="metric-value">{{ stats()!.totalProducts | number }}</span>
+            <span class="metric-label">Products</span>
+          </div>
+          <div class="metric">
+            <span class="metric-value">{{ stats()!.totalCustomers | number }}</span>
+            <span class="metric-label">Customers</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="metric-card">
+        <h3>Customer Satisfaction</h3>
+        <div class="metric">
+          <span class="metric-value large rating">{{ stats()!.avgRating | number:'1.1-1' }}</span>
+          <span class="metric-label">Average Rating</span>
+        </div>
+      </div>
+    </div>
+  } @else {
+    <div class="empty-state"><p>No analytics data available.</p></div>
+  }
+</div>

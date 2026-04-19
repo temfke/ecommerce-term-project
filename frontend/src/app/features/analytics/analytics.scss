@@ -1,0 +1,93 @@
+@use '../shared' as *;
+
+.analytics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 16px;
+}
+
+.metric-card {
+  padding: 24px;
+  background: #12122b;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+
+  &.wide {
+    grid-column: 1 / -1;
+  }
+
+  h3 {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #a0a0b8;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 16px;
+  }
+}
+
+.metric {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.metric-label {
+  font-size: 0.78rem;
+  color: #666;
+}
+
+.metric-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #e0e0e0;
+
+  &.large { font-size: 2rem; }
+  &.revenue { color: #00b894; }
+  &.rating { color: #fdcb6e; }
+}
+
+.metric-row {
+  display: flex;
+  gap: 40px;
+}
+
+.metric-breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 16px;
+  font-size: 0.85rem;
+  color: #a0a0b8;
+}
+
+.breakdown-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+
+  &.pending { background: #fdcb6e; }
+  &.shipped { background: #a29bfe; }
+  &.delivered { background: #00cec9; }
+}
+
+.progress-bar {
+  height: 8px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  margin-top: 16px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  border-radius: 4px;
+  background: linear-gradient(90deg, #6c5ce7, #00cec9);
+  transition: width 0.3s ease;
+}

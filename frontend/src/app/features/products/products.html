@@ -1,0 +1,191 @@
+<div class="page">
+  <div class="page-header">
+    <h2>Products</h2>
+    @if (canManage()) {
+      <div class="header-actions">
+        <button class="btn-primary" (click)="openCreate()">Add Product</button>
+      </div>
+    }
+  </div>
+
+  <div class="filter-bar" role="region" aria-label="Product filters">
+    <input
+      type="search"
+      class="search-input"
+      placeholder="Search products..."
+      [value]="search()"
+      (input)="onSearch($any($event.target).value)"
+      aria-label="Search products" />
+
+    <select
+      class="filter-select"
+      aria-label="Filter by category"
+      [value]="categoryFilter() ?? ''"
+      (change)="onCategoryChange($any($event.target).value)">
+      <option value="">All Categories</option>
+      @for (cat of categories(); track cat.id) {
+        <option [value]="cat.id">{{ cat.name }}</option>
+      }
+    </select>
+
+    <select
+      class="filter-select"
+      aria-label="Filter by store"
+      [value]="storeFilter() ?? ''"
+      (change)="onStoreChange($any($event.target).value)">
+      <option value="">All Stores</option>
+      @for (store of stores(); track store.id) {
+        <option [value]="store.id">{{ store.name }}</option>
+      }
+    </select>
+
+    <div class="sort-group">
+      <select
+        class="filter-select"
+        aria-label="Sort by"
+        [value]="sortBy()"
+        (change)="onSortByChange($any($event.target).value)">
+        @for (opt of sortOptions; track opt.value) {
+          <option [value]="opt.value">Sort: {{ opt.label }}</option>
+        }
+      </select>
+      <button
+        type="button"
+        class="btn-icon sort-dir"
+        (click)="toggleSortDir()"
+        [attr.aria-label]="sortDir() === 'asc' ? 'Switch to descending' : 'Switch to ascending'"
+        [attr.aria-pressed]="sortDir() === 'asc'">
+        {{ sortDir() === 'asc' ? '↑ Asc' : '↓ Desc' }}
+      </button>
+    </div>
+
+    <button type="button" class="btn-secondary" (click)="clearFilters()">Clear</button>
+  </div>
+
+  @if (showForm()) {
+    <div class="form-overlay" (click)="closeForm()" (keyup.escape)="closeForm()">
+      <div class="form-card" (click)="$event.stopPropagation()" role="dialog" aria-label="Product form">
+        <h3>{{ editingId() ? 'Edit Product' : 'New Product' }}</h3>
+        @if (error()) {
+          <div class="error-alert" role="alert">{{ error() }}</div>
+        }
+        <form [formGroup]="form" (ngSubmit)="onSubmit()">
+          <div class="form-group">
+            <label for="p-name">Name</label>
+            <input id="p-name" formControlName="name" />
+          </div>
+          <div class="form-group">
+            <label for="p-desc">Description</label>
+            <textarea id="p-desc" formControlName="description" rows="3"></textarea>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="p-sku">SKU</label>
+              <input id="p-sku" formControlName="sku" />
+            </div>
+            <div class="form-group">
+              <label for="p-price">Unit Price</label>
+              <input id="p-price" type="number" formControlName="unitPrice" step="0.01" />
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="p-stock">Stock Qty</label>
+              <input id="p-stock" type="number" formControlName="stockQuantity" />
+            </div>
+            <div class="form-group">
+              <label for="p-cat">Category</label>
+              <select id="p-cat" formControlName="categoryId">
+                <option [ngValue]="null">None</option>
+                @for (cat of categories(); track cat.id) {
+                  <option [ngValue]="cat.id">{{ cat.name }}</option>
+                }
+              </select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="p-store">Store</label>
+            <select id="p-store" formControlName="storeId">
+              <option [ngValue]="null">-- Select store --</option>
+              @for (store of stores(); track store.id) {
+                <option [ngValue]="store.id">{{ store.name }}</option>
+              }
+            </select>
+            @if (stores().length === 0) {
+              <small class="form-hint">No stores available. Create a store first.</small>
+            }
+          </div>
+          <div class="form-group">
+            <label for="p-img">Image URL</label>
+            <input id="p-img" formControlName="imageUrl" />
+          </div>
+          <div class="form-actions">
+            <button type="button" class="btn-secondary" (click)="closeForm()">Cancel</button>
+            <button type="submit" class="btn-primary">{{ editingId() ? 'Update' : 'Create' }}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  }
+
+  @if (loading()) {
+    <div class="loading" role="status"><span>Loading products...</span></div>
+  } @else if (products().length === 0) {
+    <div class="empty-state"><p>No products found.</p></div>
+  } @else {
+    <div class="product-grid">
+      @for (p of products(); track p.id) {
+        <article class="product-card">
+          <button
+            type="button"
+            class="product-clickable"
+            (click)="openDetail(p)"
+            [attr.aria-label]="'View details for ' + p.name">
+            <div class="product-image">
+              @if (p.imageUrl) {
+                <img [src]="p.imageUrl" [alt]="p.name" loading="lazy" />
+              } @else {
+                <div class="no-image" aria-hidden="true">No Image</div>
+              }
+              @if (p.stockQuantity < 10) {
+                <span class="stock-badge low" aria-label="Low stock">
+                  {{ p.stockQuantity === 0 ? 'Out of stock' : 'Only ' + p.stockQuantity + ' left' }}
+                </span>
+              }
+            </div>
+            <div class="product-body">
+              <div class="product-store">{{ p.storeName }}</div>
+              <h3 class="product-name" [title]="p.name">{{ p.name }}</h3>
+              <div class="product-meta">{{ p.categoryName ?? 'Uncategorized' }}</div>
+              <div class="product-price">${{ p.unitPrice | number:'1.2-2' }}</div>
+            </div>
+          </button>
+          <div class="product-actions">
+            <button
+              type="button"
+              class="btn-cart"
+              [class.flash]="addedFlash()?.id === p.id"
+              [disabled]="p.stockQuantity <= 0 || remainingStock(p) <= 0"
+              (click)="addToCart(p); $event.stopPropagation()"
+              [attr.aria-label]="'Add ' + p.name + ' to cart'">
+              @if (addedFlash()?.id === p.id) {
+                {{ addedFlash()!.msg }}
+              } @else if (p.stockQuantity <= 0) {
+                Out of stock
+              } @else if (remainingStock(p) <= 0) {
+                Max in cart
+              } @else {
+                Add to cart
+              }
+            </button>
+            @if (canManage()) {
+              <button class="btn-icon" (click)="openEdit(p)" [attr.aria-label]="'Edit ' + p.name">Edit</button>
+              <button class="btn-icon danger" (click)="deleteProduct(p.id)" [attr.aria-label]="'Delete ' + p.name">Delete</button>
+            }
+          </div>
+        </article>
+      }
+    </div>
+  }
+
+</div>

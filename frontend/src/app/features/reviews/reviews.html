@@ -1,0 +1,73 @@
+<div class="page">
+  <div class="page-header">
+    <h2>Reviews</h2>
+    @if (isIndividual()) {
+      <button class="btn-primary" (click)="openCreate()">Write Review</button>
+    }
+  </div>
+
+  @if (showForm()) {
+    <div class="form-overlay" (click)="closeForm()" (keyup.escape)="closeForm()">
+      <div class="form-card" (click)="$event.stopPropagation()" role="dialog" aria-label="Review form">
+        <h3>Write a Review</h3>
+        @if (error()) {
+          <div class="error-alert" role="alert">{{ error() }}</div>
+        }
+        <form [formGroup]="form" (ngSubmit)="onSubmit()">
+          <div class="form-group">
+            <label for="r-product">Product ID</label>
+            <input id="r-product" type="number" formControlName="productId" placeholder="Enter product ID" />
+          </div>
+          <div class="form-group">
+            <label for="r-rating">Rating (1-5)</label>
+            <input id="r-rating" type="number" formControlName="starRating" min="1" max="5" />
+          </div>
+          <div class="form-group">
+            <label for="r-body">Review</label>
+            <textarea id="r-body" formControlName="reviewBody" rows="4" placeholder="Share your experience..."></textarea>
+          </div>
+          <div class="form-actions">
+            <button type="button" class="btn-secondary" (click)="closeForm()">Cancel</button>
+            <button type="submit" class="btn-primary">Submit Review</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  }
+
+  @if (loading()) {
+    <div class="loading" role="status"><span>Loading reviews...</span></div>
+  } @else if (reviews().length === 0) {
+    <div class="empty-state"><p>No reviews found.</p></div>
+  } @else {
+    <div class="card-grid">
+      @for (r of reviews(); track r.id) {
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">{{ r.productName }}</div>
+              <span class="reviewer">by {{ r.userName }}</span>
+            </div>
+            <span class="stars" [attr.aria-label]="r.starRating + ' out of 5 stars'">{{ starsDisplay(r.starRating) }}</span>
+          </div>
+          <div class="card-body">
+            <p>{{ r.reviewBody || 'No written review.' }}</p>
+          </div>
+          <div class="card-footer">
+            <span class="review-date">{{ r.createdAt | date:'mediumDate' }}</span>
+            <div class="actions">
+              @if (r.sentiment) {
+                <span class="status-badge" [class]="r.sentiment === 'POSITIVE' ? 'open' : r.sentiment === 'NEGATIVE' ? 'cancelled' : 'pending'">
+                  {{ r.sentiment }}
+                </span>
+              }
+              @if (isAdmin()) {
+                <button class="btn-icon danger" (click)="deleteReview(r.id)" aria-label="Delete review by {{ r.userName }}">Delete</button>
+              }
+            </div>
+          </div>
+        </div>
+      }
+    </div>
+  }
+</div>

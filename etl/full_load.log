@@ -1,0 +1,41 @@
+[0] Starting ETL  (SAMPLE=None)
+[1] All tables truncated
+[categories]   inserted 27 rows
+[2] Loaded 27 categories
+[users]   inserted 1,224,182 rows
+[3] Loaded 1,224,182 users
+[stores]   inserted 4 rows
+[4] Loaded 4 stores
+[customer_profiles]   inserted 350 rows
+[5] Loaded 350 customer profiles
+[products]   inserted 275,564 rows
+[6] Loaded 275,564 products
+[orders]   inserted 22,190 rows
+[7a] DS1 orders: 22,190
+[order_items]   inserted 397,924 rows
+[8a] DS1 order items: 397,924
+[orders]   inserted 408,773 rows
+[7b] DS5 orders: 408,773
+[order_items]   inserted 584,493 rows
+[8b] DS5 order items: 584,493
+[shipments]   inserted 10,999 rows
+[9] Loaded 10,999 shipments
+[reviews]   inserted 149,086 rows
+[10]   amazon_reviews_us_Gift_Card_v1_00.tsv: 149,086 reviews
+[reviews]   inserted 341,931 rows
+[10]   amazon_reviews_us_Software_v1_00.tsv: 341,931 reviews
+[reviews]   inserted 960,872 rows
+[10]   amazon_reviews_us_Watches_v1_00.tsv: 960,872 reviews
+[10] Total reviews loaded: 1,451,889
+[DONE] ETL completed in 0:19:42.027168
+
+Final row counts:
+  users                   1,224,182
+  categories                     27
+  stores                          4
+  customer_profiles             350
+  products                  275,564
+  orders                    430,963
+  order_items               982,417
+  shipments                  10,999
+  reviews                 1,451,889

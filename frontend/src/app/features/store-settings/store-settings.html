@@ -1,0 +1,63 @@
+<div class="page">
+  <div class="page-header">
+    <h2>Store Settings</h2>
+    <button class="btn-primary" (click)="openCreate()">Create Store</button>
+  </div>
+
+  @if (success()) {
+    <div class="success-alert" role="status">{{ success() }}</div>
+  }
+
+  @if (showForm()) {
+    <div class="form-overlay" (click)="closeForm()" (keyup.escape)="closeForm()">
+      <div class="form-card" (click)="$event.stopPropagation()" role="dialog" aria-label="Store form">
+        <h3>{{ editingId() ? 'Edit Store' : 'Create Store' }}</h3>
+        @if (error()) {
+          <div class="error-alert" role="alert">{{ error() }}</div>
+        }
+        <form [formGroup]="form" (ngSubmit)="onSubmit()">
+          <div class="form-group">
+            <label for="s-name">Store Name</label>
+            <input id="s-name" formControlName="name" placeholder="My Store" />
+          </div>
+          <div class="form-group">
+            <label for="s-desc">Description</label>
+            <textarea id="s-desc" formControlName="description" rows="3" placeholder="Describe your store..."></textarea>
+          </div>
+          <div class="form-group">
+            <label for="s-logo">Logo URL</label>
+            <input id="s-logo" formControlName="logoUrl" placeholder="https://..." />
+          </div>
+          <div class="form-actions">
+            <button type="button" class="btn-secondary" (click)="closeForm()">Cancel</button>
+            <button type="submit" class="btn-primary">{{ editingId() ? 'Update' : 'Create' }}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  }
+
+  @if (loading()) {
+    <div class="loading" role="status"><span>Loading stores...</span></div>
+  } @else if (stores().length === 0) {
+    <div class="empty-state"><p>No stores yet. Create your first store to get started.</p></div>
+  } @else {
+    <div class="card-grid">
+      @for (store of stores(); track store.id) {
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">{{ store.name }}</div>
+            <span class="status-badge" [class]="statusClass(store.status)">{{ store.status }}</span>
+          </div>
+          <div class="card-body">
+            <p>{{ store.description || 'No description.' }}</p>
+          </div>
+          <div class="card-footer">
+            <span class="card-date">Created: {{ store.createdAt | date:'mediumDate' }}</span>
+            <button class="btn-icon" (click)="openEdit(store)" aria-label="Edit {{ store.name }}">Edit</button>
+          </div>
+        </div>
+      }
+    </div>
+  }
+</div>

@@ -1,0 +1,62 @@
+<div class="page">
+  <div class="page-header">
+    <h2>Shipments</h2>
+    <div class="header-actions">
+      <select
+        class="search-input"
+        (change)="onFilterChange($any($event.target).value)"
+        aria-label="Filter by status">
+        <option value="">All Statuses</option>
+        @for (s of statuses; track s) {
+          <option [value]="s">{{ s }}</option>
+        }
+      </select>
+    </div>
+  </div>
+
+  @if (loading()) {
+    <div class="loading" role="status"><span>Loading shipments...</span></div>
+  } @else if (shipments().length === 0) {
+    <div class="empty-state"><p>No shipments found.</p></div>
+  } @else {
+    <div class="table-wrap" role="region" aria-label="Shipments table" tabindex="0">
+      <table>
+        <thead>
+          <tr>
+            <th>Tracking ID</th>
+            <th>Order</th>
+            <th>Customer</th>
+            <th>Carrier</th>
+            <th>Destination</th>
+            <th>Status</th>
+            <th>Est. Delivery</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (s of shipments(); track s.id) {
+            <tr>
+              <td class="mono">{{ s.trackingId }}</td>
+              <td class="mono">#{{ s.orderId }}</td>
+              <td>{{ s.customerName }}</td>
+              <td>{{ s.carrier }}</td>
+              <td>{{ s.destination }}</td>
+              <td><span class="status-badge" [class]="statusClass(s.status)">{{ s.status }}</span></td>
+              <td>{{ s.estimatedDelivery | date:'mediumDate' }}</td>
+              <td class="actions">
+                <select
+                  (change)="updateStatus(s.id, $any($event.target).value)"
+                  [value]="s.status"
+                  aria-label="Update shipment {{ s.trackingId }} status">
+                  @for (st of statuses; track st) {
+                    <option [value]="st" [selected]="st === s.status">{{ st }}</option>
+                  }
+                </select>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+</div>

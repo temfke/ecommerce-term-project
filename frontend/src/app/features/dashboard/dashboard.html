@@ -1,0 +1,60 @@
+<div class="dashboard">
+  <div class="page-header">
+    <h2>Dashboard</h2>
+    @if (stores().length > 0) {
+      <div class="store-selector">
+        <label for="store-select" class="sr-only">Select store</label>
+        <select id="store-select" (change)="selectStore(+$any($event.target).value)">
+          @for (store of stores(); track store.id) {
+            <option [value]="store.id" [selected]="store.id === selectedStoreId()">{{ store.name }}</option>
+          }
+        </select>
+      </div>
+    }
+  </div>
+
+  @if (loading()) {
+    <div class="loading" role="status">
+      <span>Loading dashboard data...</span>
+    </div>
+  } @else if (stats()) {
+    <div class="stats-grid">
+      <div class="stat-card revenue">
+        <span class="stat-label">Total Revenue</span>
+        <span class="stat-value">${{ stats()!.totalRevenue | number:'1.2-2' }}</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-label">Total Orders</span>
+        <span class="stat-value">{{ stats()!.totalOrders | number }}</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-label">Customers</span>
+        <span class="stat-value">{{ stats()!.totalCustomers | number }}</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-label">Avg Rating</span>
+        <span class="stat-value">{{ stats()!.avgRating | number:'1.1-1' }}</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-label">Products</span>
+        <span class="stat-value">{{ stats()!.totalProducts | number }}</span>
+      </div>
+      <div class="stat-card pending">
+        <span class="stat-label">Pending Orders</span>
+        <span class="stat-value">{{ stats()!.pendingOrders | number }}</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-label">Shipped</span>
+        <span class="stat-value">{{ stats()!.shippedOrders | number }}</span>
+      </div>
+      <div class="stat-card success">
+        <span class="stat-label">Delivered</span>
+        <span class="stat-value">{{ stats()!.deliveredOrders | number }}</span>
+      </div>
+    </div>
+  } @else {
+    <div class="empty-state">
+      <p>No dashboard data available.</p>
+    </div>
+  }
+</div>

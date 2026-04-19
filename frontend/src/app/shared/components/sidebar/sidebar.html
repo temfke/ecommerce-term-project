@@ -1,0 +1,35 @@
+<aside class="sidebar" [class.collapsed]="collapsed()" role="navigation" aria-label="Main navigation">
+  <div class="sidebar-brand">
+    @if (!collapsed()) {
+      <span class="brand-text">DataPulse</span>
+    } @else {
+      <span class="brand-icon" aria-hidden="true">D</span>
+    }
+  </div>
+
+  <nav class="sidebar-nav">
+    @for (item of navItems(); track item.route) {
+      <a
+        class="nav-item"
+        [routerLink]="item.route"
+        routerLinkActive="active"
+        [attr.aria-label]="item.route === '/orders' && cart.count() > 0 ? item.label + ', ' + cart.count() + ' items in cart' : item.label">
+        <span class="nav-icon" aria-hidden="true">{{ item.icon }}</span>
+        @if (!collapsed()) {
+          <span class="nav-label">{{ item.label }}</span>
+        }
+        @if (item.route === '/orders' && cart.count() > 0) {
+          <span class="cart-badge" aria-hidden="true">{{ cart.count() }}</span>
+        }
+      </a>
+    }
+  </nav>
+
+  <button class="toggle-btn" (click)="toggle()" [attr.aria-label]="collapsed() ? 'Expand sidebar' : 'Collapse sidebar'">
+    @if (collapsed()) {
+      <span aria-hidden="true">▶</span>
+    } @else {
+      <span aria-hidden="true">◀</span>
+    }
+  </button>
+</aside>
