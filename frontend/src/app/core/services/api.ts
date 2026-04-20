@@ -1,7 +1,7 @@
 import { inject, Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Product, ProductRequest } from '../models/product.model';
-import { Order, OrderRequest } from '../models/order.model';
+import { Order, OrderRequest, CheckoutSessionRequest, CheckoutSessionResponse, PaymentConfirmResponse } from '../models/order.model';
 import { Store, StoreRequest } from '../models/store.model';
 import { Review, ReviewRequest, ReviewVoteType } from '../models/review.model';
 import { Shipment } from '../models/shipment.model';
@@ -45,6 +45,14 @@ export class Api {
   createOrder(req: OrderRequest) { return this.http.post<Order>(`${this.API}/orders`, req); }
   updateOrderStatus(id: number, status: string) {
     return this.http.patch<Order>(`${this.API}/orders/${id}/status?status=${status}`, {});
+  }
+
+  // Payments (Stripe Checkout)
+  createCheckoutSession(req: CheckoutSessionRequest) {
+    return this.http.post<CheckoutSessionResponse>(`${this.API}/payments/checkout-session`, req);
+  }
+  confirmPayment(sessionId: string) {
+    return this.http.get<PaymentConfirmResponse>(`${this.API}/payments/confirm?session_id=${encodeURIComponent(sessionId)}`);
   }
 
   // Stores

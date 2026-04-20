@@ -30,3 +30,19 @@ export interface OrderRequest {
   paymentMethod: PaymentMethod;
   shippingAddress: string;
 }
+
+export interface CheckoutSessionRequest {
+  storeId: number;
+  items: { productId: number; quantity: number }[];
+  shippingAddress?: string;
+}
+
+export interface CheckoutSessionResponse {
+  sessionId: string;
+  url: string;
+}
+
+export interface PaymentConfirmResponse {
+  status: string;
+  order?: Order;
+}

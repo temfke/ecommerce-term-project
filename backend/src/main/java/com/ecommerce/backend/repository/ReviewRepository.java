@@ -3,6 +3,7 @@ package com.ecommerce.backend.repository;
 import com.ecommerce.backend.entity.Review;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 
@@ -12,16 +13,16 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
     List<Review> findByUserId(Long userId);
 
     @Query("SELECT r FROM Review r WHERE r.product.id = :productId AND r.user.id = :userId ORDER BY r.createdAt DESC")
-    List<Review> findByProductIdAndUserIdOrderByCreatedAtDesc(Long productId, Long userId);
+    List<Review> findByProductIdAndUserIdOrderByCreatedAtDesc(@Param("productId") Long productId, @Param("userId") Long userId);
 
     @Query("SELECT AVG(r.starRating) FROM Review r WHERE r.product.id = :productId")
-    Double getAverageRatingByProductId(Long productId);
+    Double getAverageRatingByProductId(@Param("productId") Long productId);
 
     @Query("SELECT AVG(r.starRating) FROM Review r WHERE r.product.store.id = :storeId")
-    Double getAverageRatingByStoreId(Long storeId);
+    Double getAverageRatingByStoreId(@Param("storeId") Long storeId);
 
     long countByProductId(Long productId);
 
     @Query("SELECT r FROM Review r WHERE r.product.store.id = :storeId")
-    List<Review> findByStoreId(Long storeId);
+    List<Review> findByStoreId(@Param("storeId") Long storeId);
 }

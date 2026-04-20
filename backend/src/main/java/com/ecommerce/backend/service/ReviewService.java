@@ -12,13 +12,14 @@ import com.ecommerce.backend.repository.ProductRepository;
 import com.ecommerce.backend.repository.ReviewRepository;
 import com.ecommerce.backend.repository.ReviewVoteRepository;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -27,11 +28,17 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class ReviewService {
 
+    private static final Logger log = LoggerFactory.getLogger(ReviewService.class);
+
     private final ReviewRepository reviewRepository;
     private final ProductRepository productRepository;
     private final ReviewVoteRepository reviewVoteRepository;
 
+    @Transactional
     public ReviewResponse createReview(ReviewRequest request, User currentUser) {
+        if (currentUser == null || currentUser.getId() == null) {
+            throw new BadRequestException("Authentication required to post a review");
+        }
         Product product = productRepository.findById(request.getProductId())
                 .orElseThrow(() -> new ResourceNotFoundException("Product not found"));
 
@@ -42,7 +49,8 @@ public class ReviewService {
                 .reviewBody(request.getReviewBody())
                 .build();
 
-        return toResponse(reviewRepository.save(review), Collections.emptyMap());
+        Review saved = reviewRepository.saveAndFlush(review);
+        return toResponse(saved, Collections.emptyMap());
     }
 
     public List<ReviewResponse> getReviewsByProduct(Long productId, User currentUser) {
@@ -158,12 +166,17 @@ public class ReviewService {
         if (currentUser == null || currentUser.getId() == null || reviewIds.isEmpty()) {
             return Collections.emptyMap();
         }
-        List<ReviewVote> votes = reviewVoteRepository.findByUserIdAndReviewIdIn(currentUser.getId(), reviewIds);
-        Map<Long, String> map = new HashMap<>();
-        for (ReviewVote v : votes) {
-            map.put(v.getReview().getId(), v.isHelpful() ? "HELPFUL" : "NOT_HELPFUL");
+        try {
+            List<ReviewVote> votes = reviewVoteRepository.findByUserIdAndReviewIdIn(currentUser.getId(), reviewIds);
+            Map<Long, String> map = new HashMap<>();
+            for (ReviewVote v : votes) {
+                map.put(v.getReview().getId(), v.isHelpful() ? "HELPFUL" : "NOT_HELPFUL");
+            }
+            return map;
+        } catch (Exception ex) {
+            log.warn("Failed to load review votes for user {}: {}", currentUser.getId(), ex.getMessage());
+            return Collections.emptyMap();
         }
-        return map;
     }
 
     private ReviewResponse toResponse(Review review, Map<Long, String> myVotes) {

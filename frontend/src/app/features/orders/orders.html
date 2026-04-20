@@ -86,6 +86,37 @@
               <span>Total</span>
               <strong>${{ cart.subtotal() | number:'1.2-2' }}</strong>
             </div>
+
+            <label class="shipping-field">
+              <span>Shipping address (optional)</span>
+              <textarea
+                rows="2"
+                placeholder="Street, city, postal code"
+                [value]="shippingAddress()"
+                (input)="updateShippingAddress($any($event.target).value)"
+                aria-label="Shipping address"></textarea>
+            </label>
+
+            @if (paymentError()) {
+              <div class="error-alert" role="alert">{{ paymentError() }}</div>
+            }
+            @if (paymentSuccess()) {
+              <div class="success-alert" role="status">{{ paymentSuccess() }}</div>
+            }
+            @if (distinctStoreCount() > 1) {
+              <div class="warn-alert" role="alert">
+                Cart contains items from {{ distinctStoreCount() }} stores. Please check out one store at a time.
+              </div>
+            }
+
+            <button
+              type="button"
+              class="btn-primary btn-checkout"
+              [disabled]="paymentLoading() || cart.count() === 0 || distinctStoreCount() > 1"
+              (click)="payWithStripe()">
+              {{ paymentLoading() ? 'Redirecting to Stripe…' : 'Pay with card (Stripe)' }}
+            </button>
+            <p class="stripe-hint">Test card: <code>4242 4242 4242 4242</code> · any future date · any CVC</p>
           </aside>
         </div>
       }

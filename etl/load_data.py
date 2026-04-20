@@ -13,7 +13,7 @@ Order of operations:
   7. orders          <- DS1 + DS5
   8. order_items     <- DS1 + DS5
   9. shipments       <- DS3 fields randomly attached to existing orders
- 10. reviews         <- DS6 (all 3 TSVs)
+ 10. reviews         <- DS6 (Gift Card TSV only)
 """
 from pathlib import Path
 import pandas as pd
@@ -41,7 +41,7 @@ FILE_DS2 = DATA_DIR / "E-commerce Customer Behavior - Sheet1.csv"
 FILE_DS3 = DATA_DIR / "Train.csv"
 FILE_DS4 = DATA_DIR / "Amazon Sale Report.csv"
 FILE_DS5 = DATA_DIR / "Pakistan Largest Ecommerce Dataset.csv"
-FILES_DS6 = sorted(DATA_DIR.glob("amazon_reviews_us_*.tsv"))
+FILES_DS6 = [DATA_DIR / "amazon_reviews_us_Gift_Card_v1_00.tsv"]
 
 engine = create_engine(DB_URL, pool_recycle=3600)
 
@@ -76,7 +76,7 @@ def fetch_id_map(table: str, key_col: str) -> dict:
 def truncate_all():
     with engine.begin() as conn:
         conn.execute(text("SET FOREIGN_KEY_CHECKS=0"))
-        for t in ["reviews", "shipments", "order_items", "orders",
+        for t in ["review_votes", "reviews", "shipments", "order_items", "orders",
                   "products", "customer_profiles", "stores",
                   "categories", "users"]:
             conn.execute(text(f"TRUNCATE TABLE {t}"))

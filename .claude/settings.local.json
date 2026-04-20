@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(npx ng *)",
-      "Bash(./mvnw -q -DskipTests compile)"
+      "Bash(./mvnw -q -DskipTests compile)",
+      "Bash(python etl/load_data.py)"
     ]
   }
 }
