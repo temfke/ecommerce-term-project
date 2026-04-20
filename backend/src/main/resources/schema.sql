@@ -209,3 +209,23 @@ CREATE TABLE IF NOT EXISTS reviews (
     CONSTRAINT fk_review_product FOREIGN KEY (product_id) REFERENCES products(id)
         ON DELETE CASCADE
 ) ENGINE=InnoDB;
+
+-- ============================================================
+-- 10. REVIEW_VOTES (id, user_id, review_id, helpful)
+--     Tracks per-user helpful/not-helpful votes on reviews so
+--     each user can vote at most once per review (toggle/change).
+-- ============================================================
+CREATE TABLE IF NOT EXISTS review_votes (
+    id          BIGINT      AUTO_INCREMENT PRIMARY KEY,
+    user_id     BIGINT      NOT NULL,
+    review_id   BIGINT      NOT NULL,
+    helpful     BOOLEAN     NOT NULL,
+    created_at  DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT uk_review_votes_user_review UNIQUE (user_id, review_id),
+    INDEX idx_review_votes_review (review_id),
+    CONSTRAINT fk_review_vote_user FOREIGN KEY (user_id) REFERENCES users(id)
+        ON DELETE CASCADE,
+    CONSTRAINT fk_review_vote_review FOREIGN KEY (review_id) REFERENCES reviews(id)
+        ON DELETE CASCADE
+) ENGINE=InnoDB;

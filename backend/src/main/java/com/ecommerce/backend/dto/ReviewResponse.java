@@ -20,5 +20,6 @@ public class ReviewResponse {
     private String sentiment;
     private Integer helpfulVotes;
     private Integer totalVotes;
+    private String myVote;
     private LocalDateTime createdAt;
 }

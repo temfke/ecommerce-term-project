@@ -3,7 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { Product, ProductRequest } from '../models/product.model';
 import { Order, OrderRequest } from '../models/order.model';
 import { Store, StoreRequest } from '../models/store.model';
-import { Review, ReviewRequest } from '../models/review.model';
+import { Review, ReviewRequest, ReviewVoteType } from '../models/review.model';
 import { Shipment } from '../models/shipment.model';
 import { User } from '../models/user.model';
 import { DashboardStats, Category } from '../models/dashboard.model';
@@ -62,9 +62,15 @@ export class Api {
   getProductRatingSummary(productId: number) {
     return this.http.get<{ count: number; averageRating: number }>(`${this.API}/reviews/product/${productId}/summary`);
   }
+  getMyReviewsForProduct(productId: number) {
+    return this.http.get<Review[]>(`${this.API}/reviews/product/${productId}/mine`);
+  }
   getMyReviews() { return this.http.get<Review[]>(`${this.API}/reviews/my`); }
   getReviewsByStore(storeId: number) { return this.http.get<Review[]>(`${this.API}/reviews/store/${storeId}`); }
   createReview(req: ReviewRequest) { return this.http.post<Review>(`${this.API}/reviews`, req); }
+  voteOnReview(id: number, type: ReviewVoteType) {
+    return this.http.post<Review>(`${this.API}/reviews/${id}/vote?type=${type}`, {});
+  }
   deleteReview(id: number) { return this.http.delete<void>(`${this.API}/reviews/${id}`); }
 
   // Shipments

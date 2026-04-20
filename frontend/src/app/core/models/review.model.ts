@@ -9,8 +9,11 @@ export interface Review {
   sentiment?: string;
   helpfulVotes: number;
   totalVotes: number;
+  myVote?: 'HELPFUL' | 'NOT_HELPFUL' | null;
   createdAt: string;
 }
+
+export type ReviewVoteType = 'HELPFUL' | 'NOT_HELPFUL';
 
 export interface ReviewRequest {
   productId: number;

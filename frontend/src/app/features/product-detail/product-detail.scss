@@ -428,6 +428,39 @@
   font-size: 0.85rem;
 }
 
+.review-list-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.reviews-subhead {
+  margin: 0;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: #a0a0b8;
+  font-weight: 700;
+}
+
+.review-item.own {
+  background: rgba(108, 92, 231, 0.08);
+  border-color: rgba(108, 92, 231, 0.3);
+}
+
+.own-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 8px;
+  border-radius: 10px;
+  background: rgba(108, 92, 231, 0.25);
+  color: #d8d3ff;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
 .review-votes {
   display: inline-flex;
   gap: 8px;
@@ -443,21 +476,66 @@
   font-size: 0.75rem;
   font-weight: 600;
   border: 1px solid transparent;
+  background: rgba(255, 255, 255, 0.04);
+  color: #a0a0b8;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s, transform 0.1s;
 
   .vote-icon {
     font-size: 0.85rem;
     line-height: 1;
+    filter: grayscale(0.4);
+    transition: filter 0.15s;
   }
 
-  &.like {
-    background: rgba(0, 184, 148, 0.12);
+  &:hover:not(:disabled) {
+    transform: translateY(-1px);
+  }
+
+  &:focus-visible {
+    outline: 2px solid #6c5ce7;
+    outline-offset: 2px;
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+  }
+
+  &.like:hover:not(:disabled),
+  &.like.active {
+    background: rgba(0, 184, 148, 0.18);
     color: #55efc4;
-    border-color: rgba(0, 184, 148, 0.25);
+    border-color: rgba(0, 184, 148, 0.4);
+
+    .vote-icon { filter: none; }
   }
 
-  &.dislike {
-    background: rgba(231, 76, 60, 0.1);
+  &.dislike:hover:not(:disabled),
+  &.dislike.active {
+    background: rgba(231, 76, 60, 0.16);
     color: #ff7675;
-    border-color: rgba(231, 76, 60, 0.2);
+    border-color: rgba(231, 76, 60, 0.35);
+
+    .vote-icon { filter: none; }
+  }
+
+  &.static {
+    cursor: default;
+
+    &:hover { transform: none; }
+
+    &.like {
+      background: rgba(0, 184, 148, 0.12);
+      color: #55efc4;
+      border-color: rgba(0, 184, 148, 0.25);
+    }
+
+    &.dislike {
+      background: rgba(231, 76, 60, 0.1);
+      color: #ff7675;
+      border-color: rgba(231, 76, 60, 0.2);
+    }
   }
 }

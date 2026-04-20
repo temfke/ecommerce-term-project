@@ -1,5 +1,6 @@
-import { Injectable, computed, signal } from '@angular/core';
+import { Injectable, computed, signal, inject, effect } from '@angular/core';
 import { Product } from '../models/product.model';
+import { Auth } from './auth';
 
 export interface CartItem {
   productId: number;
@@ -12,16 +13,30 @@ export interface CartItem {
   stockQuantity: number;
 }
 
-const STORAGE_KEY = 'cart';
+const STORAGE_PREFIX = 'cart::';
+const GUEST_KEY = `${STORAGE_PREFIX}guest`;
 
 @Injectable({ providedIn: 'root' })
 export class Cart {
-  private readonly _items = signal<CartItem[]>(this.load());
+  private readonly auth = inject(Auth);
+  private currentKey = this.keyFor(this.auth.currentUser()?.userId ?? null);
+  private readonly _items = signal<CartItem[]>(this.load(this.currentKey));
 
   readonly items = this._items.asReadonly();
   readonly count = computed(() => this._items().reduce((s, i) => s + i.quantity, 0));
   readonly subtotal = computed(() =>
     this._items().reduce((s, i) => s + i.quantity * i.unitPrice, 0));
+
+  constructor() {
+    effect(() => {
+      const user = this.auth.currentUser();
+      const nextKey = this.keyFor(user?.userId ?? null);
+      if (nextKey !== this.currentKey) {
+        this.currentKey = nextKey;
+        this._items.set(this.load(nextKey));
+      }
+    });
+  }
 
   quantityOf(productId: number): number {
     return this._items().find(i => i.productId === productId)?.quantity ?? 0;
@@ -82,15 +97,24 @@ export class Cart {
     this.persist();
   }
 
-  private load(): CartItem[] {
+  private keyFor(userId: number | null): string {
+    return userId == null ? GUEST_KEY : `${STORAGE_PREFIX}${userId}`;
+  }
+
+  private load(key: string): CartItem[] {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return [];
-      const parsed = JSON.parse(raw) as CartItem[];
-      return parsed.map(i => ({
-        ...i,
-        stockQuantity: i.stockQuantity ?? i.quantity,
-      }));
+      const raw = localStorage.getItem(key);
+      if (raw) {
+        const parsed = JSON.parse(raw) as CartItem[];
+        return parsed.map(i => ({ ...i, stockQuantity: i.stockQuantity ?? i.quantity }));
+      }
+      const legacy = localStorage.getItem('cart');
+      if (legacy && key === GUEST_KEY) {
+        const parsed = JSON.parse(legacy) as CartItem[];
+        localStorage.removeItem('cart');
+        return parsed.map(i => ({ ...i, stockQuantity: i.stockQuantity ?? i.quantity }));
+      }
+      return [];
     } catch {
       return [];
     }
@@ -98,7 +122,7 @@ export class Cart {
 
   private persist() {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(this._items()));
+      localStorage.setItem(this.currentKey, JSON.stringify(this._items()));
     } catch {
       // ignore quota errors
     }

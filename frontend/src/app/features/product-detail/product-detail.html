@@ -152,7 +152,7 @@
 
       @if (reviewsLoading()) {
         <div class="loading" role="status"><span>Loading reviews...</span></div>
-      } @else if (summary().count === 0) {
+      } @else if (reviews().length === 0 && summary().count === 0) {
         <div class="empty-state"><p>No reviews yet for this product. Be the first!</p></div>
       } @else {
         <div class="reviews-layout">
@@ -181,38 +181,95 @@
             }
           </aside>
 
-          <ul class="review-list">
-            @for (r of reviews(); track r.id) {
-              <li class="review-item">
-                <div class="review-header">
-                  <div class="stars" aria-label="{{ r.starRating }} out of 5 stars">
-                    @for (filled of starArray(r.starRating); track $index) {
-                      <span [class.filled]="filled" aria-hidden="true">★</span>
+          <div class="review-list-wrapper">
+            @if (myReviews().length > 0) {
+              <h4 class="reviews-subhead">Your review{{ myReviews().length === 1 ? '' : 's' }}</h4>
+              <ul class="review-list">
+                @for (r of myReviews(); track r.id) {
+                  <li class="review-item own">
+                    <div class="review-header">
+                      <div class="stars" aria-label="{{ r.starRating }} out of 5 stars">
+                        @for (filled of starArray(r.starRating); track $index) {
+                          <span [class.filled]="filled" aria-hidden="true">★</span>
+                        }
+                      </div>
+                      <div class="review-meta">
+                        <span class="reviewer">{{ r.userName }}</span>
+                        <span class="own-badge" aria-label="Your review">You</span>
+                        <span class="review-date">{{ r.createdAt | date:'mediumDate' }}</span>
+                      </div>
+                    </div>
+                    @if (r.reviewBody) {
+                      <p class="review-body">{{ r.reviewBody }}</p>
                     }
-                  </div>
-                  <div class="review-meta">
-                    <span class="reviewer">{{ r.userName }}</span>
-                    <span class="review-date">{{ r.createdAt | date:'mediumDate' }}</span>
-                  </div>
-                </div>
-                @if (r.reviewBody) {
-                  <p class="review-body">{{ r.reviewBody }}</p>
+                    <div class="review-votes" aria-label="Community votes">
+                      <span class="vote like static" aria-label="Helpful votes">
+                        <span class="vote-icon" aria-hidden="true">👍</span>
+                        {{ r.helpfulVotes }}
+                      </span>
+                      <span class="vote dislike static" aria-label="Not helpful votes">
+                        <span class="vote-icon" aria-hidden="true">👎</span>
+                        {{ r.totalVotes - r.helpfulVotes }}
+                      </span>
+                    </div>
+                  </li>
                 }
-                @if (r.totalVotes > 0) {
-                  <div class="review-votes" aria-label="Community votes">
-                    <span class="vote like">
-                      <span class="vote-icon" aria-hidden="true">👍</span>
-                      {{ r.helpfulVotes }}
-                    </span>
-                    <span class="vote dislike">
-                      <span class="vote-icon" aria-hidden="true">👎</span>
-                      {{ r.totalVotes - r.helpfulVotes }}
-                    </span>
-                  </div>
-                }
-              </li>
+              </ul>
             }
-          </ul>
+
+            @if (otherReviews().length > 0) {
+              @if (myReviews().length > 0) {
+                <h4 class="reviews-subhead">Other reviews</h4>
+              }
+              @if (voteError()) {
+                <div class="error-alert" role="alert">{{ voteError() }}</div>
+              }
+              <ul class="review-list">
+                @for (r of otherReviews(); track r.id) {
+                  <li class="review-item">
+                    <div class="review-header">
+                      <div class="stars" aria-label="{{ r.starRating }} out of 5 stars">
+                        @for (filled of starArray(r.starRating); track $index) {
+                          <span [class.filled]="filled" aria-hidden="true">★</span>
+                        }
+                      </div>
+                      <div class="review-meta">
+                        <span class="reviewer">{{ r.userName }}</span>
+                        <span class="review-date">{{ r.createdAt | date:'mediumDate' }}</span>
+                      </div>
+                    </div>
+                    @if (r.reviewBody) {
+                      <p class="review-body">{{ r.reviewBody }}</p>
+                    }
+                    <div class="review-votes" aria-label="Vote on this review">
+                      <button
+                        type="button"
+                        class="vote like"
+                        [class.active]="r.myVote === 'HELPFUL'"
+                        [disabled]="!canReview() || votingId() === r.id"
+                        (click)="vote(r, 'HELPFUL')"
+                        [attr.aria-pressed]="r.myVote === 'HELPFUL'"
+                        [attr.aria-label]="'Mark review as helpful, currently ' + r.helpfulVotes + ' helpful votes'">
+                        <span class="vote-icon" aria-hidden="true">👍</span>
+                        {{ r.helpfulVotes }}
+                      </button>
+                      <button
+                        type="button"
+                        class="vote dislike"
+                        [class.active]="r.myVote === 'NOT_HELPFUL'"
+                        [disabled]="!canReview() || votingId() === r.id"
+                        (click)="vote(r, 'NOT_HELPFUL')"
+                        [attr.aria-pressed]="r.myVote === 'NOT_HELPFUL'"
+                        [attr.aria-label]="'Mark review as not helpful, currently ' + (r.totalVotes - r.helpfulVotes) + ' not-helpful votes'">
+                        <span class="vote-icon" aria-hidden="true">👎</span>
+                        {{ r.totalVotes - r.helpfulVotes }}
+                      </button>
+                    </div>
+                  </li>
+                }
+              </ul>
+            }
+          </div>
         </div>
       }
     </section>

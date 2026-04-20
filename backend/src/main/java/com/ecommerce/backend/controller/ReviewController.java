@@ -28,13 +28,22 @@ public class ReviewController {
     }
 
     @GetMapping("/product/{productId}")
-    public ResponseEntity<List<ReviewResponse>> getReviewsByProduct(@PathVariable Long productId) {
-        return ResponseEntity.ok(reviewService.getReviewsByProduct(productId));
+    public ResponseEntity<List<ReviewResponse>> getReviewsByProduct(
+            @PathVariable Long productId,
+            @AuthenticationPrincipal User currentUser) {
+        return ResponseEntity.ok(reviewService.getReviewsByProduct(productId, currentUser));
     }
 
     @GetMapping("/product/{productId}/summary")
     public ResponseEntity<java.util.Map<String, Object>> getProductRatingSummary(@PathVariable Long productId) {
         return ResponseEntity.ok(reviewService.getProductRatingSummary(productId));
+    }
+
+    @GetMapping("/product/{productId}/mine")
+    public ResponseEntity<List<ReviewResponse>> getMyReviewsForProduct(
+            @PathVariable Long productId,
+            @AuthenticationPrincipal User currentUser) {
+        return ResponseEntity.ok(reviewService.getMyReviewsForProduct(productId, currentUser));
     }
 
     @GetMapping("/my")
@@ -44,8 +53,18 @@ public class ReviewController {
 
     @GetMapping("/store/{storeId}")
     @PreAuthorize("hasAnyRole('CORPORATE', 'ADMIN')")
-    public ResponseEntity<List<ReviewResponse>> getReviewsByStore(@PathVariable Long storeId) {
-        return ResponseEntity.ok(reviewService.getReviewsByStore(storeId));
+    public ResponseEntity<List<ReviewResponse>> getReviewsByStore(
+            @PathVariable Long storeId,
+            @AuthenticationPrincipal User currentUser) {
+        return ResponseEntity.ok(reviewService.getReviewsByStore(storeId, currentUser));
+    }
+
+    @PostMapping("/{id}/vote")
+    public ResponseEntity<ReviewResponse> voteOnReview(
+            @PathVariable Long id,
+            @RequestParam String type,
+            @AuthenticationPrincipal User currentUser) {
+        return ResponseEntity.ok(reviewService.vote(id, type, currentUser));
     }
 
     @DeleteMapping("/{id}")
