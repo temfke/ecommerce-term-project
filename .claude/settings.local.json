@@ -3,7 +3,8 @@
     "allow": [
       "Bash(npx ng *)",
       "Bash(./mvnw -q -DskipTests compile)",
-      "Bash(python etl/load_data.py)"
+      "Bash(python etl/load_data.py)",
+      "Bash(python etl/update_giftcards.py)"
     ]
   }
 }

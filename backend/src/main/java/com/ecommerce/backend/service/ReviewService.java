@@ -11,9 +11,11 @@ import com.ecommerce.backend.exception.ResourceNotFoundException;
 import com.ecommerce.backend.repository.ProductRepository;
 import com.ecommerce.backend.repository.ReviewRepository;
 import com.ecommerce.backend.repository.ReviewVoteRepository;
+import com.ecommerce.backend.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,28 +35,46 @@ public class ReviewService {
     private final ReviewRepository reviewRepository;
     private final ProductRepository productRepository;
     private final ReviewVoteRepository reviewVoteRepository;
+    private final UserRepository userRepository;
 
     @Transactional
     public ReviewResponse createReview(ReviewRequest request, User currentUser) {
         if (currentUser == null || currentUser.getId() == null) {
             throw new BadRequestException("Authentication required to post a review");
         }
+        if (request.getStarRating() == null || request.getStarRating() < 1 || request.getStarRating() > 5) {
+            throw new BadRequestException("Star rating must be between 1 and 5");
+        }
+
+        User managedUser = userRepository.findById(currentUser.getId())
+                .orElseThrow(() -> new BadRequestException("Authenticated user no longer exists"));
         Product product = productRepository.findById(request.getProductId())
                 .orElseThrow(() -> new ResourceNotFoundException("Product not found"));
 
+        String body = request.getReviewBody();
+        if (body != null) {
+            body = body.trim();
+            if (body.isEmpty()) body = null;
+        }
+
         Review review = Review.builder()
-                .user(currentUser)
+                .user(managedUser)
                 .product(product)
                 .starRating(request.getStarRating())
-                .reviewBody(request.getReviewBody())
+                .reviewBody(body)
+                .helpfulVotes(0)
+                .totalVotes(0)
                 .build();
 
         Review saved = reviewRepository.saveAndFlush(review);
+        log.info("Saved review id={} userId={} productId={} stars={} bodyLen={}",
+                saved.getId(), managedUser.getId(), product.getId(),
+                saved.getStarRating(), body == null ? 0 : body.length());
         return toResponse(saved, Collections.emptyMap());
     }
 
     public List<ReviewResponse> getReviewsByProduct(Long productId, User currentUser) {
-        List<Review> reviews = reviewRepository.findFirst50ByProductIdOrderByCreatedAtDesc(productId);
+        List<Review> reviews = reviewRepository.findRecentByProductId(productId, PageRequest.of(0, 50));
         return mapWithVotes(reviews, currentUser);
     }
 

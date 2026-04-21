@@ -3,7 +3,7 @@
   flex-direction: column;
   width: 240px;
   height: 100vh;
-  background: #12122b;
+  background: linear-gradient(180deg, #1a0a0c, #110608);
   border-right: 1px solid rgba(255, 255, 255, 0.06);
   transition: width 0.2s ease;
   position: fixed;
@@ -31,14 +31,14 @@
   .brand-text {
     font-size: 1.25rem;
     font-weight: 700;
-    color: #6c5ce7;
+    color: #dc2626;
     letter-spacing: -0.5px;
   }
 
   .brand-icon {
     font-size: 1.25rem;
     font-weight: 700;
-    color: #6c5ce7;
+    color: #dc2626;
   }
 }
 
@@ -65,13 +65,14 @@
   transition: background 0.15s ease, color 0.15s ease;
 
   &:hover {
-    background: rgba(108, 92, 231, 0.08);
+    background: rgba(220, 38, 38, 0.08);
     color: #e0e0e0;
   }
 
   &.active {
-    background: rgba(108, 92, 231, 0.15);
-    color: #6c5ce7;
+    background: linear-gradient(90deg, rgba(220, 38, 38, 0.22), rgba(220, 38, 38, 0.04));
+    color: #fca5a5;
+    box-shadow: inset 3px 0 0 #ef4444;
   }
 
   .nav-icon {
@@ -117,11 +118,11 @@
   transition: background 0.15s ease;
 
   &:hover {
-    background: rgba(108, 92, 231, 0.1);
+    background: rgba(220, 38, 38, 0.1);
   }
 
   &:focus-visible {
-    outline: 2px solid #6c5ce7;
+    outline: 2px solid #dc2626;
     outline-offset: 2px;
   }
 }

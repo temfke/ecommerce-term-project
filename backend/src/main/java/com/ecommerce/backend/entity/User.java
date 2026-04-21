@@ -50,6 +50,15 @@ public class User implements UserDetails {
 
     private boolean enabled;
 
+    @Column(name = "email_verified", nullable = false)
+    private boolean emailVerified;
+
+    @Column(name = "email_verification_token", length = 64)
+    private String emailVerificationToken;
+
+    @Column(name = "email_verification_expires_at")
+    private LocalDateTime emailVerificationExpiresAt;
+
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();

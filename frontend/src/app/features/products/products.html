@@ -161,23 +161,25 @@
             </div>
           </button>
           <div class="product-actions">
-            <button
-              type="button"
-              class="btn-cart"
-              [class.flash]="addedFlash()?.id === p.id"
-              [disabled]="p.stockQuantity <= 0 || remainingStock(p) <= 0"
-              (click)="addToCart(p); $event.stopPropagation()"
-              [attr.aria-label]="'Add ' + p.name + ' to cart'">
-              @if (addedFlash()?.id === p.id) {
-                {{ addedFlash()!.msg }}
-              } @else if (p.stockQuantity <= 0) {
-                Out of stock
-              } @else if (remainingStock(p) <= 0) {
-                Max in cart
-              } @else {
-                Add to cart
-              }
-            </button>
+            @if (!isAdmin()) {
+              <button
+                type="button"
+                class="btn-cart"
+                [class.flash]="addedFlash()?.id === p.id"
+                [disabled]="p.stockQuantity <= 0 || remainingStock(p) <= 0"
+                (click)="addToCart(p); $event.stopPropagation()"
+                [attr.aria-label]="'Add ' + p.name + ' to cart'">
+                @if (addedFlash()?.id === p.id) {
+                  {{ addedFlash()!.msg }}
+                } @else if (p.stockQuantity <= 0) {
+                  Out of stock
+                } @else if (remainingStock(p) <= 0) {
+                  Max in cart
+                } @else {
+                  Add to cart
+                }
+              </button>
+            }
             @if (canManage()) {
               <button class="btn-icon" (click)="openEdit(p)" [attr.aria-label]="'Edit ' + p.name">Edit</button>
               <button class="btn-icon danger" (click)="deleteProduct(p.id)" [attr.aria-label]="'Delete ' + p.name">Delete</button>

@@ -7,7 +7,7 @@
   align-items: center;
   margin-bottom: 24px;
   padding: 14px 16px;
-  background: #12122b;
+  background: linear-gradient(180deg, #1a0a0c, #110608);
   border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.06);
 
@@ -31,10 +31,10 @@
   background-repeat: no-repeat;
   background-position: right 12px center;
 
-  &:focus { outline: none; border-color: #6c5ce7; }
+  &:focus { outline: none; border-color: #dc2626; }
 
   option {
-    background: #12122b;
+    background: linear-gradient(180deg, #1a0a0c, #110608);
     color: #e0e0e0;
   }
 }
@@ -66,7 +66,7 @@
 .product-card {
   display: flex;
   flex-direction: column;
-  background: #12122b;
+  background: linear-gradient(180deg, #1a0a0c, #110608);
   border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.06);
   overflow: hidden;
@@ -74,7 +74,7 @@
 
   &:hover {
     transform: translateY(-2px);
-    border-color: rgba(108, 92, 231, 0.4);
+    border-color: rgba(220, 38, 38, 0.4);
   }
 }
 
@@ -125,7 +125,7 @@
 
 .product-store {
   font-size: 0.7rem;
-  color: #a29bfe;
+  color: #f87171;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   font-weight: 600;
@@ -171,7 +171,7 @@
   flex-direction: column;
   width: 100%;
 
-  &:focus-visible { outline: 2px solid #6c5ce7; outline-offset: -2px; }
+  &:focus-visible { outline: 2px solid #dc2626; outline-offset: -2px; }
 }
 
 .product-actions {
@@ -188,16 +188,17 @@
   padding: 8px 12px;
   border: none;
   border-radius: 6px;
-  background: #6c5ce7;
+  background: linear-gradient(180deg, #ef4444, #b91c1c);
   color: #fff;
   font-size: 0.8rem;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.15s;
+  transition: filter 0.15s, box-shadow 0.15s;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.08) inset, 0 3px 10px rgba(220, 38, 38, 0.25);
 
-  &:hover:not(:disabled) { background: #5a4bd1; }
-  &:focus-visible { outline: 2px solid #a29bfe; outline-offset: 2px; }
-  &:disabled { background: rgba(255, 255, 255, 0.06); color: #555; cursor: not-allowed; }
-  &.flash { background: #00b894; }
+  &:hover:not(:disabled) { filter: brightness(1.08); box-shadow: 0 1px 0 rgba(255, 255, 255, 0.1) inset, 0 5px 14px rgba(220, 38, 38, 0.35); }
+  &:focus-visible { outline: 2px solid #f87171; outline-offset: 2px; }
+  &:disabled { background: rgba(255, 255, 255, 0.06); color: #555; cursor: not-allowed; box-shadow: none; }
+  &.flash { background: #00b894; box-shadow: none; }
 }
 

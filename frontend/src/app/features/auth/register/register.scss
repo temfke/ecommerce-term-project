@@ -4,14 +4,14 @@
   justify-content: center;
   min-height: 100vh;
   padding: 24px;
-  background: #0f0f23;
+  background: #0a0606;
 }
 
 .auth-card {
   width: 100%;
   max-width: 480px;
   padding: 40px;
-  background: #12122b;
+  background: linear-gradient(180deg, #1a0a0c, #110608);
   border-radius: 16px;
   border: 1px solid rgba(255, 255, 255, 0.06);
 }
@@ -23,7 +23,7 @@
   .brand {
     font-size: 1.75rem;
     font-weight: 700;
-    color: #6c5ce7;
+    color: #dc2626;
     margin-bottom: 8px;
   }
 
@@ -91,7 +91,7 @@
 
     &:focus {
       outline: none;
-      border-color: #6c5ce7;
+      border-color: #dc2626;
     }
 
     &[aria-invalid="true"] {
@@ -108,7 +108,7 @@
     padding-right: 36px;
 
     option {
-      background: #12122b;
+      background: linear-gradient(180deg, #1a0a0c, #110608);
       color: #e0e0e0;
     }
   }
@@ -123,7 +123,7 @@
   padding: 12px;
   border: none;
   border-radius: 8px;
-  background: #6c5ce7;
+  background: #dc2626;
   color: #fff;
   font-size: 0.9rem;
   font-weight: 600;
@@ -132,11 +132,11 @@
   margin-top: 4px;
 
   &:hover:not(:disabled) {
-    background: #5a4bd1;
+    background: #b91c1c;
   }
 
   &:focus-visible {
-    outline: 2px solid #6c5ce7;
+    outline: 2px solid #dc2626;
     outline-offset: 2px;
   }
 
@@ -153,7 +153,7 @@
   color: #a0a0b8;
 
   a {
-    color: #6c5ce7;
+    color: #dc2626;
     font-weight: 500;
 
     &:hover {
@@ -161,7 +161,7 @@
     }
 
     &:focus-visible {
-      outline: 2px solid #6c5ce7;
+      outline: 2px solid #dc2626;
       outline-offset: 2px;
     }
   }

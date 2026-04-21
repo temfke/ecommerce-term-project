@@ -9,6 +9,7 @@ export interface User {
   gender?: string;
   phone?: string;
   enabled: boolean;
+  emailVerified: boolean;
   createdAt: string;
 }
 
@@ -20,6 +21,8 @@ export interface AuthResponse {
   firstName: string;
   lastName: string;
   role: Role;
+  emailVerified: boolean;
+  emailVerificationToken?: string;
 }
 
 export interface LoginRequest {

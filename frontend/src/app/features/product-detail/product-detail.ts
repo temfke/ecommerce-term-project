@@ -6,6 +6,7 @@ import { catchError } from 'rxjs/operators';
 import { Api } from '../../core/services/api';
 import { Auth } from '../../core/services/auth';
 import { Cart } from '../../core/services/cart';
+import { Wishlist } from '../../core/services/wishlist';
 import { Product } from '../../core/models/product.model';
 import { Review, ReviewVoteType } from '../../core/models/review.model';
 
@@ -22,15 +23,19 @@ export class ProductDetail implements OnInit {
   private readonly api = inject(Api);
   private readonly auth = inject(Auth);
   readonly cart = inject(Cart);
+  readonly wishlist = inject(Wishlist);
 
   readonly product = signal<Product | null>(null);
   readonly reviews = signal<Review[]>([]);
   readonly summary = signal<{ count: number; averageRating: number }>({ count: 0, averageRating: 0 });
+  readonly related = signal<Product[]>([]);
   readonly loading = signal(true);
   readonly reviewsLoading = signal(true);
   readonly notFound = signal(false);
   readonly detailQty = signal(1);
   readonly addedFlash = signal(false);
+  readonly buying = signal(false);
+  readonly shareFlash = signal('');
   readonly votingId = signal<number | null>(null);
   readonly voteError = signal('');
 
@@ -43,6 +48,12 @@ export class ProductDetail implements OnInit {
 
   readonly currentUserId = computed(() => this.auth.currentUser()?.userId ?? null);
   readonly canReview = computed(() => this.auth.isAuthenticated());
+  readonly isAdmin = computed(() => this.auth.userRole() === 'ADMIN');
+  readonly canBuy = computed(() => !this.isAdmin());
+  readonly inWishlist = computed(() => {
+    const p = this.product();
+    return p != null && this.wishlist.ids().includes(p.id);
+  });
 
   readonly maxAddable = computed(() => {
     const p = this.product();
@@ -96,6 +107,7 @@ export class ProductDetail implements OnInit {
       next: (p) => {
         this.product.set(p);
         this.loading.set(false);
+        this.loadRelated(p);
       },
       error: () => {
         this.notFound.set(true);
@@ -106,7 +118,19 @@ export class ProductDetail implements OnInit {
     this.reloadReviews(id);
   }
 
-  private reloadReviews(id: number) {
+  private loadRelated(p: Product) {
+    this.related.set([]);
+    if (p.categoryId == null) return;
+    this.api.getProducts({ categoryId: p.categoryId, limit: 12 }).subscribe({
+      next: (list) => {
+        const filtered = list.filter(x => x.id !== p.id).slice(0, 6);
+        this.related.set(filtered);
+      },
+      error: () => this.related.set([]),
+    });
+  }
+
+  private reloadReviews(id: number, pinned?: Review) {
     this.api.getProductRatingSummary(id).subscribe({
       next: (s) => this.summary.set(s),
       error: () => this.summary.set({ count: 0, averageRating: 0 }),
@@ -118,7 +142,7 @@ export class ProductDetail implements OnInit {
         mine: this.api.getMyReviewsForProduct(id).pipe(catchError(() => of([] as Review[]))),
       }).subscribe({
         next: ({ recent, mine }) => {
-          this.reviews.set(this.mergeReviews(recent, mine));
+          this.reviews.set(this.mergeReviews(recent, mine, pinned));
           this.reviewsLoading.set(false);
         },
         error: () => this.reviewsLoading.set(false),
@@ -126,7 +150,7 @@ export class ProductDetail implements OnInit {
     } else {
       this.api.getReviewsByProduct(id).subscribe({
         next: (r) => {
-          this.reviews.set(r);
+          this.reviews.set(this.mergeReviews(r, [], pinned));
           this.reviewsLoading.set(false);
         },
         error: () => this.reviewsLoading.set(false),
@@ -134,11 +158,15 @@ export class ProductDetail implements OnInit {
     }
   }
 
-  private mergeReviews(recent: Review[], mine: Review[]): Review[] {
-    const seen = new Set(recent.map(r => r.id));
-    const merged = [...recent];
+  private mergeReviews(recent: Review[], mine: Review[], pinned?: Review): Review[] {
+    const seen = new Set<number>();
+    const merged: Review[] = [];
+    if (pinned) { merged.push(pinned); seen.add(pinned.id); }
+    for (const r of recent) {
+      if (!seen.has(r.id)) { merged.push(r); seen.add(r.id); }
+    }
     for (const r of mine) {
-      if (!seen.has(r.id)) merged.push(r);
+      if (!seen.has(r.id)) { merged.push(r); seen.add(r.id); }
     }
     return merged;
   }
@@ -157,8 +185,61 @@ export class ProductDetail implements OnInit {
     setTimeout(() => this.addedFlash.set(false), 1500);
   }
 
+  buyNow() {
+    const p = this.product();
+    if (!p || this.maxAddable() <= 0) return;
+    if (!this.auth.isAuthenticated()) {
+      this.router.navigate(['/login']);
+      return;
+    }
+    this.cart.add(p, this.detailQty());
+    this.buying.set(true);
+    this.router.navigate(['/orders']);
+  }
+
+  toggleWishlist() {
+    const p = this.product();
+    if (!p) return;
+    const saved = this.wishlist.toggle(p.id);
+    this.shareFlash.set(saved ? 'Saved to wishlist' : 'Removed from wishlist');
+    setTimeout(() => this.shareFlash.set(''), 1500);
+  }
+
+  shareProduct() {
+    const p = this.product();
+    if (!p) return;
+    const url = window.location.href;
+    const data = { title: p.name, text: p.name, url };
+    const nav = window.navigator as Navigator & { share?: (d: ShareData) => Promise<void> };
+    if (typeof nav.share === 'function') {
+      nav.share(data).catch(() => this.copyLink(url));
+      return;
+    }
+    this.copyLink(url);
+  }
+
+  private copyLink(url: string) {
+    const onSuccess = () => {
+      this.shareFlash.set('Link copied');
+      setTimeout(() => this.shareFlash.set(''), 1500);
+    };
+    if (window.navigator.clipboard?.writeText) {
+      window.navigator.clipboard.writeText(url).then(onSuccess, () => {
+        this.shareFlash.set('Copy failed');
+        setTimeout(() => this.shareFlash.set(''), 1500);
+      });
+    } else {
+      this.shareFlash.set('Copy not supported');
+      setTimeout(() => this.shareFlash.set(''), 1500);
+    }
+  }
+
   goBack() {
     this.router.navigate(['/products']);
+  }
+
+  openRelated(p: Product) {
+    this.router.navigate(['/products', p.id]);
   }
 
   starArray(rating: number): boolean[] {
@@ -234,7 +315,7 @@ export class ProductDetail implements OnInit {
           count: s.count + 1,
           averageRating: Math.round(((s.averageRating * s.count + created.starRating) / (s.count + 1)) * 10) / 10,
         }));
-        this.reloadReviews(p.id);
+        this.reloadReviews(p.id, created);
         setTimeout(() => this.submitSuccess.set(false), 2500);
       },
       error: (err) => {

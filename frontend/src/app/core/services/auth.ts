@@ -65,6 +65,10 @@ export class Auth {
     return this._user()?.role === 'INDIVIDUAL' ? '/products' : '/dashboard';
   }
 
+  updateStoredAuth(res: AuthResponse) {
+    this.storeAuth(res);
+  }
+
   private storeAuth(res: AuthResponse) {
     localStorage.setItem('accessToken', res.accessToken);
     localStorage.setItem('refreshToken', res.refreshToken);

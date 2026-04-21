@@ -61,39 +61,143 @@
           }
         </div>
 
-        <div class="detail-cart">
-          <div class="qty-control" role="group" aria-label="Quantity">
+        @if (canBuy()) {
+          <div class="detail-cart">
+            <div class="qty-control" role="group" aria-label="Quantity">
+              <button
+                type="button"
+                [disabled]="detailQty() <= 1 || maxAddable() <= 0"
+                (click)="changeDetailQty(-1)"
+                aria-label="Decrease quantity">−</button>
+              <span class="qty-value" aria-live="polite">{{ detailQty() }}</span>
+              <button
+                type="button"
+                [disabled]="detailQty() >= maxAddable()"
+                (click)="changeDetailQty(1)"
+                aria-label="Increase quantity">+</button>
+            </div>
             <button
               type="button"
-              [disabled]="detailQty() <= 1 || maxAddable() <= 0"
-              (click)="changeDetailQty(-1)"
-              aria-label="Decrease quantity">−</button>
-            <span class="qty-value" aria-live="polite">{{ detailQty() }}</span>
+              class="btn-primary btn-add-cart"
+              [class.flash]="addedFlash()"
+              [disabled]="maxAddable() <= 0"
+              (click)="addToCart()">
+              @if (addedFlash()) {
+                Added to cart ✓
+              } @else if (p.stockQuantity <= 0) {
+                Out of stock
+              } @else if (maxAddable() <= 0) {
+                Max in cart
+              } @else {
+                Add {{ detailQty() }} to cart
+              }
+            </button>
             <button
               type="button"
-              [disabled]="detailQty() >= maxAddable()"
-              (click)="changeDetailQty(1)"
-              aria-label="Increase quantity">+</button>
+              class="btn-buy-now"
+              [disabled]="maxAddable() <= 0 || buying()"
+              (click)="buyNow()">
+              Buy Now
+            </button>
           </div>
-          <button
-            type="button"
-            class="btn-primary btn-add-cart"
-            [class.flash]="addedFlash()"
-            [disabled]="maxAddable() <= 0"
-            (click)="addToCart()">
-            @if (addedFlash()) {
-              Added to cart ✓
-            } @else if (p.stockQuantity <= 0) {
-              Out of stock
-            } @else if (maxAddable() <= 0) {
-              Max in cart
-            } @else {
-              Add {{ detailQty() }} to cart
+
+          <div class="secondary-actions" role="group" aria-label="More options">
+            <button
+              type="button"
+              class="btn-ghost"
+              [class.active]="inWishlist()"
+              (click)="toggleWishlist()"
+              [attr.aria-pressed]="inWishlist()"
+              [attr.aria-label]="inWishlist() ? 'Remove from wishlist' : 'Save to wishlist'">
+              <span class="icon" aria-hidden="true">{{ inWishlist() ? '♥' : '♡' }}</span>
+              {{ inWishlist() ? 'Saved' : 'Save for later' }}
+            </button>
+            <button type="button" class="btn-ghost" (click)="shareProduct()" aria-label="Share product">
+              <span class="icon" aria-hidden="true">↗</span>
+              Share
+            </button>
+            @if (shareFlash()) {
+              <span class="action-flash" role="status">{{ shareFlash() }}</span>
             }
-          </button>
-        </div>
+          </div>
+        } @else {
+          <div class="admin-notice" role="note">
+            Admin view — purchasing is disabled for administrators.
+          </div>
+        }
       </div>
     </section>
+
+    <section class="info-grid" aria-label="Product highlights">
+      <div class="info-card">
+        <h3 class="section-heading">Highlights</h3>
+        <dl class="spec-list">
+          <div class="spec-row">
+            <dt>SKU</dt>
+            <dd>{{ p.sku }}</dd>
+          </div>
+          <div class="spec-row">
+            <dt>Category</dt>
+            <dd>{{ p.categoryName ?? 'Uncategorized' }}</dd>
+          </div>
+          <div class="spec-row">
+            <dt>Sold by</dt>
+            <dd>{{ p.storeName }}</dd>
+          </div>
+          <div class="spec-row">
+            <dt>Availability</dt>
+            <dd>
+              @if (p.stockQuantity <= 0) {
+                Out of stock
+              } @else if (p.stockQuantity < 10) {
+                Only {{ p.stockQuantity }} left
+              } @else {
+                In stock
+              }
+            </dd>
+          </div>
+          <div class="spec-row">
+            <dt>Listed</dt>
+            <dd>{{ p.createdAt | date:'mediumDate' }}</dd>
+          </div>
+        </dl>
+      </div>
+
+      <div class="info-card">
+        <h3 class="section-heading">Shipping &amp; Returns</h3>
+        <ul class="perks-list">
+          <li><span class="perk-icon" aria-hidden="true">🚚</span> Free standard shipping on orders over $50</li>
+          <li><span class="perk-icon" aria-hidden="true">📦</span> Ships within 1–2 business days</li>
+          <li><span class="perk-icon" aria-hidden="true">↩</span> 30-day hassle-free returns</li>
+          <li><span class="perk-icon" aria-hidden="true">🔒</span> Secure checkout via Stripe</li>
+        </ul>
+      </div>
+    </section>
+
+    @if (related().length > 0) {
+      <section class="related-section" aria-label="You may also like">
+        <h3 class="section-heading">You may also like</h3>
+        <div class="related-row">
+          @for (rp of related(); track rp.id) {
+            <button
+              type="button"
+              class="related-card"
+              (click)="openRelated(rp)"
+              [attr.aria-label]="'View ' + rp.name">
+              <div class="related-image">
+                @if (rp.imageUrl) {
+                  <img [src]="rp.imageUrl" [alt]="rp.name" loading="lazy" />
+                } @else {
+                  <div class="no-image" aria-hidden="true">No Image</div>
+                }
+              </div>
+              <div class="related-name" [title]="rp.name">{{ rp.name }}</div>
+              <div class="related-price">${{ rp.unitPrice | number:'1.2-2' }}</div>
+            </button>
+          }
+        </div>
+      </section>
+    }
 
     <section class="reviews-section" aria-label="Reviews">
       <h3 class="section-heading">

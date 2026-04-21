@@ -5,7 +5,8 @@ import { Order, OrderRequest, CheckoutSessionRequest, CheckoutSessionResponse, P
 import { Store, StoreRequest } from '../models/store.model';
 import { Review, ReviewRequest, ReviewVoteType } from '../models/review.model';
 import { Shipment } from '../models/shipment.model';
-import { User } from '../models/user.model';
+import { User, AuthResponse } from '../models/user.model';
+import { Address, AddressRequest } from '../models/address.model';
 import { DashboardStats, Category } from '../models/dashboard.model';
 
 @Injectable({ providedIn: 'root' })
@@ -100,6 +101,17 @@ export class Api {
   }
   toggleUserStatus(id: number) { return this.http.patch<User>(`${this.API}/users/${id}/toggle-status`, {}); }
   deleteUser(id: number) { return this.http.delete<void>(`${this.API}/users/${id}`); }
+
+  // Addresses
+  getMyAddresses() { return this.http.get<Address[]>(`${this.API}/addresses`); }
+  createAddress(req: AddressRequest) { return this.http.post<Address>(`${this.API}/addresses`, req); }
+  updateAddress(id: number, req: AddressRequest) { return this.http.put<Address>(`${this.API}/addresses/${id}`, req); }
+  setDefaultAddress(id: number) { return this.http.patch<Address>(`${this.API}/addresses/${id}/default`, {}); }
+  deleteAddress(id: number) { return this.http.delete<void>(`${this.API}/addresses/${id}`); }
+
+  // Email verification
+  verifyEmail(token: string) { return this.http.post<AuthResponse>(`http://localhost:8080/api/auth/verify`, { token }); }
+  resendEmailVerification() { return this.http.post<AuthResponse>(`http://localhost:8080/api/auth/resend-verification`, {}); }
 
   // Categories
   getCategories() { return this.http.get<Category[]>(`${this.API}/categories`); }

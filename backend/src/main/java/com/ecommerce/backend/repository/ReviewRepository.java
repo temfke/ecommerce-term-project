@@ -1,6 +1,7 @@
 package com.ecommerce.backend.repository;
 
 import com.ecommerce.backend.entity.Review;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -8,9 +9,15 @@ import org.springframework.data.repository.query.Param;
 import java.util.List;
 
 public interface ReviewRepository extends JpaRepository<Review, Long> {
-    List<Review> findByProductId(Long productId);
-    List<Review> findFirst50ByProductIdOrderByCreatedAtDesc(Long productId);
-    List<Review> findByUserId(Long userId);
+
+    @Query("SELECT r FROM Review r WHERE r.product.id = :productId")
+    List<Review> findByProductId(@Param("productId") Long productId);
+
+    @Query("SELECT r FROM Review r WHERE r.product.id = :productId ORDER BY r.createdAt DESC")
+    List<Review> findRecentByProductId(@Param("productId") Long productId, Pageable pageable);
+
+    @Query("SELECT r FROM Review r WHERE r.user.id = :userId")
+    List<Review> findByUserId(@Param("userId") Long userId);
 
     @Query("SELECT r FROM Review r WHERE r.product.id = :productId AND r.user.id = :userId ORDER BY r.createdAt DESC")
     List<Review> findByProductIdAndUserIdOrderByCreatedAtDesc(@Param("productId") Long productId, @Param("userId") Long userId);
@@ -21,7 +28,8 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
     @Query("SELECT AVG(r.starRating) FROM Review r WHERE r.product.store.id = :storeId")
     Double getAverageRatingByStoreId(@Param("storeId") Long storeId);
 
-    long countByProductId(Long productId);
+    @Query("SELECT COUNT(r) FROM Review r WHERE r.product.id = :productId")
+    long countByProductId(@Param("productId") Long productId);
 
     @Query("SELECT r FROM Review r WHERE r.product.store.id = :storeId")
     List<Review> findByStoreId(@Param("storeId") Long storeId);

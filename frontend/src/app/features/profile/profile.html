@@ -9,6 +9,11 @@
           <h2>{{ user()!.firstName }} {{ user()!.lastName }}</h2>
           <p class="email">{{ user()!.email }}</p>
           <span class="role-badge">{{ user()!.role }}</span>
+          @if (user()!.emailVerified) {
+            <span class="verified-badge">Verified</span>
+          } @else {
+            <span class="unverified-badge">Email not verified</span>
+          }
         </div>
       </div>
 
@@ -64,6 +69,146 @@
           }
         </div>
       </form>
+    </div>
+
+    @if (!user()!.emailVerified) {
+      <div class="profile-card section-card">
+        <h3>Email Verification</h3>
+        <p class="section-help">
+          Enter the verification token sent to your email. The token is also printed in the backend log on register.
+        </p>
+
+        @if (verifySuccess()) {
+          <div class="success-alert" role="status">{{ verifySuccess() }}</div>
+        }
+        @if (verifyError()) {
+          <div class="error-alert" role="alert">{{ verifyError() }}</div>
+        }
+
+        <div class="form-group">
+          <label for="pf-vtoken">Verification Token</label>
+          <input
+            id="pf-vtoken"
+            type="text"
+            [value]="verifyToken()"
+            (input)="updateVerifyToken($any($event.target).value)"
+            placeholder="Paste the token here"
+            autocomplete="off"
+          />
+        </div>
+
+        <div class="profile-actions">
+          <button type="button" class="btn-secondary" (click)="resendVerification()" [disabled]="verifySubmitting()">
+            Resend Token
+          </button>
+          <button type="button" class="btn-primary" (click)="submitVerification()" [disabled]="verifySubmitting()">
+            @if (verifySubmitting()) { Verifying... } @else { Verify Email }
+          </button>
+        </div>
+      </div>
+    }
+
+    <div class="profile-card section-card">
+      <div class="section-header">
+        <h3>My Addresses</h3>
+        @if (!addressFormOpen()) {
+          <button type="button" class="btn-primary btn-small" (click)="openAddressForm()">Add Address</button>
+        }
+      </div>
+
+      @if (addressSuccess()) {
+        <div class="success-alert" role="status">{{ addressSuccess() }}</div>
+      }
+      @if (addressError()) {
+        <div class="error-alert" role="alert">{{ addressError() }}</div>
+      }
+
+      @if (addressFormOpen()) {
+        <form [formGroup]="addressForm" (ngSubmit)="submitAddress()" class="profile-form">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="addr-label">Label</label>
+              <input id="addr-label" formControlName="label" placeholder="e.g. Home, Office" />
+            </div>
+            <div class="form-group checkbox-group">
+              <label for="addr-default">
+                <input id="addr-default" type="checkbox" formControlName="isDefault" />
+                Set as default
+              </label>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="addr-line1">Address Line 1</label>
+            <input id="addr-line1" formControlName="line1" />
+          </div>
+
+          <div class="form-group">
+            <label for="addr-line2">Address Line 2 (optional)</label>
+            <input id="addr-line2" formControlName="line2" />
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="addr-city">City</label>
+              <input id="addr-city" formControlName="city" />
+            </div>
+            <div class="form-group">
+              <label for="addr-state">State / Region</label>
+              <input id="addr-state" formControlName="state" />
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="addr-postal">Postal Code</label>
+              <input id="addr-postal" formControlName="postalCode" />
+            </div>
+            <div class="form-group">
+              <label for="addr-country">Country</label>
+              <input id="addr-country" formControlName="country" />
+            </div>
+          </div>
+
+          <div class="profile-actions">
+            <button type="button" class="btn-secondary" (click)="closeAddressForm()">Cancel</button>
+            <button type="submit" class="btn-primary" [disabled]="addressSaving()">
+              @if (addressSaving()) { Saving... } @else { Save Address }
+            </button>
+          </div>
+        </form>
+      }
+
+      @if (addressesLoading()) {
+        <div class="loading" role="status"><span>Loading addresses...</span></div>
+      } @else if (addresses().length === 0) {
+        <div class="empty-state"><p>No addresses yet. Add one to speed up checkout.</p></div>
+      } @else {
+        <ul class="address-list">
+          @for (a of addresses(); track a.id) {
+            <li class="address-card">
+              <div class="address-head">
+                <strong>{{ a.label }}</strong>
+                @if (a.isDefault) { <span class="default-badge">Default</span> }
+              </div>
+              <p class="address-lines">
+                {{ a.line1 }}@if (a.line2) {, {{ a.line2 }}}<br />
+                {{ a.city }}@if (a.state) {, {{ a.state }}} {{ a.postalCode }}<br />
+                {{ a.country }}
+              </p>
+              <div class="address-actions">
+                @if (!a.isDefault) {
+                  <button type="button" class="btn-secondary btn-small" (click)="setDefaultAddress(a.id)">
+                    Make Default
+                  </button>
+                }
+                <button type="button" class="btn-secondary btn-small" (click)="openAddressForm(a)">Edit</button>
+                <button type="button" class="btn-danger btn-small" (click)="deleteAddress(a.id)">Delete</button>
+              </div>
+            </li>
+          }
+        </ul>
+      }
     </div>
   } @else {
     <div class="empty-state"><p>Could not load profile.</p></div>

@@ -53,6 +53,7 @@ public class UserService {
                 .gender(user.getGender())
                 .phone(user.getPhone())
                 .enabled(user.isEnabled())
+                .emailVerified(user.isEmailVerified())
                 .createdAt(user.getCreatedAt())
                 .build();
     }

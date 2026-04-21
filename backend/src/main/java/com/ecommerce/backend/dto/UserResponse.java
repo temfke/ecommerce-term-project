@@ -19,5 +19,6 @@ public class UserResponse {
     private String gender;
     private String phone;
     private boolean enabled;
+    private boolean emailVerified;
     private LocalDateTime createdAt;
 }

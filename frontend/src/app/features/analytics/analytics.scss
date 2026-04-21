@@ -8,7 +8,7 @@
 
 .metric-card {
   padding: 24px;
-  background: #12122b;
+  background: linear-gradient(180deg, #1a0a0c, #110608);
   border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.06);
 
@@ -73,7 +73,7 @@
   border-radius: 50%;
 
   &.pending { background: #fdcb6e; }
-  &.shipped { background: #a29bfe; }
+  &.shipped { background: #f87171; }
   &.delivered { background: #00cec9; }
 }
 
@@ -88,6 +88,6 @@
 .progress-fill {
   height: 100%;
   border-radius: 4px;
-  background: linear-gradient(90deg, #6c5ce7, #00cec9);
+  background: linear-gradient(90deg, #dc2626, #00cec9);
   transition: width 0.3s ease;
 }
