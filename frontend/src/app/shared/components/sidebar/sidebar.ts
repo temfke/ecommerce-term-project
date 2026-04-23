@@ -8,6 +8,13 @@ interface NavItem {
   route: string;
   icon: string;
   roles: string[];
+  badge?: string;
+}
+
+interface NavSection {
+  title: string;
+  roles: string[];
+  items: NavItem[];
 }
 
 @Component({
@@ -23,22 +30,42 @@ export class Sidebar {
 
   readonly collapsed = signal(false);
 
-  private readonly allNavItems: NavItem[] = [
-    { label: 'Dashboard', route: '/dashboard', icon: '📊', roles: ['ADMIN', 'CORPORATE'] },
-    { label: 'Products', route: '/products', icon: '📦', roles: ['ADMIN', 'CORPORATE', 'INDIVIDUAL'] },
-    { label: 'Orders', route: '/orders', icon: '🛒', roles: ['ADMIN', 'CORPORATE', 'INDIVIDUAL'] },
-    { label: 'Customers', route: '/customers', icon: '👥', roles: ['ADMIN'] },
-    { label: 'Shipments', route: '/shipments', icon: '🚚', roles: ['ADMIN', 'CORPORATE'] },
-    { label: 'Reviews', route: '/reviews', icon: '⭐', roles: ['ADMIN', 'CORPORATE'] },
-    { label: 'Analytics', route: '/analytics', icon: '📈', roles: ['ADMIN', 'CORPORATE'] },
-    { label: 'Store Settings', route: '/store-settings', icon: '🏪', roles: ['CORPORATE'] },
-    { label: 'User Management', route: '/user-management', icon: '🔧', roles: ['ADMIN'] },
+  private readonly allSections: NavSection[] = [
+    {
+      title: 'Main Menu',
+      roles: ['ADMIN', 'CORPORATE', 'INDIVIDUAL'],
+      items: [
+        { label: 'Dashboard', route: '/dashboard', icon: '📊', roles: ['ADMIN', 'CORPORATE'] },
+        { label: 'AI Assistant', route: '/ai-assistant', icon: '🤖', roles: ['ADMIN', 'CORPORATE', 'INDIVIDUAL'], badge: 'New' },
+        { label: 'Analytics', route: '/analytics', icon: '📈', roles: ['ADMIN', 'CORPORATE'] },
+        { label: 'Products', route: '/products', icon: '📦', roles: ['ADMIN', 'CORPORATE', 'INDIVIDUAL'] },
+        { label: 'Cart', route: '/cart', icon: '🛒', roles: ['INDIVIDUAL'] },
+        { label: 'Orders', route: '/orders', icon: '📋', roles: ['ADMIN', 'CORPORATE', 'INDIVIDUAL'] },
+      ],
+    },
+    {
+      title: 'Management',
+      roles: ['ADMIN', 'CORPORATE'],
+      items: [
+        { label: 'Customers', route: '/customers', icon: '👥', roles: ['ADMIN'] },
+        { label: 'Store Settings', route: '/store-settings', icon: '🏪', roles: ['ADMIN', 'CORPORATE'] },
+        { label: 'Shipments', route: '/shipments', icon: '🚚', roles: ['ADMIN', 'CORPORATE'] },
+        { label: 'Reviews', route: '/reviews', icon: '⭐', roles: ['ADMIN', 'CORPORATE'] },
+        { label: 'User Management', route: '/user-management', icon: '🔧', roles: ['ADMIN'] },
+      ],
+    },
   ];
 
-  readonly navItems = computed(() => {
+  readonly sections = computed(() => {
     const role = this.auth.userRole();
     if (!role) return [];
-    return this.allNavItems.filter(item => item.roles.includes(role));
+    return this.allSections
+      .filter(section => section.roles.includes(role))
+      .map(section => ({
+        ...section,
+        items: section.items.filter(item => item.roles.includes(role)),
+      }))
+      .filter(section => section.items.length > 0);
   });
 
   toggle() {

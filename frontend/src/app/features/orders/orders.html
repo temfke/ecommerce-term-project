@@ -1,9 +1,9 @@
 <div class="page">
   <div class="page-header">
-    <h2>Orders</h2>
+    <h2>{{ pageTitle() }}</h2>
   </div>
 
-  @if (isIndividual()) {
+  @if (showCart()) {
     <section class="cart-section" aria-label="Your cart">
       <div class="section-header">
         <h3>
@@ -87,13 +87,41 @@
               <strong>${{ cart.subtotal() | number:'1.2-2' }}</strong>
             </div>
 
+            @if (addresses().length > 0) {
+              <label class="shipping-field">
+                <span>Ship to</span>
+                <select
+                  class="address-select"
+                  [value]="selectedAddressId()"
+                  (change)="onAddressSelect($any($event.target).value)"
+                  aria-label="Select shipping address">
+                  @for (a of addresses(); track a.id) {
+                    <option [value]="a.id">
+                      {{ a.label }}{{ a.isDefault ? ' (default)' : '' }}
+                    </option>
+                  }
+                  <option value="manual">Enter a different address…</option>
+                </select>
+                @if (selectedAddressId() !== 'manual') {
+                  <a class="manage-addresses" routerLink="/profile">Manage saved addresses</a>
+                }
+              </label>
+            }
             <label class="shipping-field">
-              <span>Shipping address (optional)</span>
+              <span>
+                @if (addresses().length > 0 && selectedAddressId() !== 'manual') {
+                  Shipping address
+                } @else {
+                  Shipping address (optional)
+                }
+              </span>
               <textarea
-                rows="2"
+                class="address-view"
+                rows="6"
                 placeholder="Street, city, postal code"
                 [value]="shippingAddress()"
                 (input)="updateShippingAddress($any($event.target).value)"
+                [readonly]="selectedAddressId() !== 'manual'"
                 aria-label="Shipping address"></textarea>
             </label>
 
@@ -123,6 +151,7 @@
     </section>
   }
 
+  @if (showOrders()) {
   <section aria-label="Order history">
     <div class="section-header">
       <h3>Order History</h3>
@@ -148,7 +177,7 @@
             </tr>
           </thead>
           <tbody>
-            @for (o of orders(); track o.id) {
+            @for (o of visibleOrders(); track o.id) {
               <tr>
                 <td class="mono">#{{ o.id }}</td>
                 <td>{{ o.customerName }}</td>
@@ -174,6 +203,19 @@
           </tbody>
         </table>
       </div>
+      <div
+        appInfiniteScroll
+        [disabled]="!hasMore()"
+        (endReached)="loadMoreOrders()"
+        class="scroll-sentinel"
+        aria-hidden="true">
+        @if (hasMore()) {
+          <span class="loading-more">Loading more… ({{ visibleOrders().length }} / {{ orders().length }})</span>
+        } @else if (orders().length > 0) {
+          <span class="loading-more done">All {{ orders().length }} orders loaded</span>
+        }
+      </div>
     }
   </section>
+  }
 </div>

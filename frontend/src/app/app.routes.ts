@@ -35,6 +35,12 @@ export const routes: Routes = [
       },
       {
         path: 'orders',
+        data: { view: 'orders' },
+        loadComponent: () => import('./features/orders/orders').then(m => m.Orders)
+      },
+      {
+        path: 'cart',
+        data: { view: 'cart' },
         loadComponent: () => import('./features/orders/orders').then(m => m.Orders)
       },
       {
@@ -58,8 +64,12 @@ export const routes: Routes = [
         loadComponent: () => import('./features/analytics/analytics').then(m => m.Analytics)
       },
       {
+        path: 'ai-assistant',
+        loadComponent: () => import('./features/ai-assistant/ai-assistant').then(m => m.AiAssistant)
+      },
+      {
         path: 'store-settings',
-        canActivate: [roleGuard('CORPORATE')],
+        canActivate: [roleGuard('ADMIN', 'CORPORATE')],
         loadComponent: () => import('./features/store-settings/store-settings').then(m => m.StoreSettings)
       },
       {

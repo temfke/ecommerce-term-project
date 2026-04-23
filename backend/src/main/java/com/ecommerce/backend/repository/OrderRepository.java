@@ -25,4 +25,10 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
 
     List<Order> findByCreatedAtBetween(LocalDateTime start, LocalDateTime end);
     List<Order> findByStoreIdAndCreatedAtBetween(Long storeId, LocalDateTime start, LocalDateTime end);
+
+    @Query("SELECT o FROM Order o WHERE o.store.owner.id = :ownerId ORDER BY o.createdAt DESC")
+    List<Order> findByStoreOwnerId(Long ownerId);
+
+    @Query("SELECT o FROM Order o ORDER BY o.createdAt DESC")
+    List<Order> findAllOrderedByCreatedAt();
 }

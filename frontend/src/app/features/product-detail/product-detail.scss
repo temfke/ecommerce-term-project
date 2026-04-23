@@ -463,8 +463,26 @@
 
 .review-votes {
   display: inline-flex;
+  align-items: center;
   gap: 8px;
   margin-top: 10px;
+}
+
+.review-delete-btn {
+  margin-left: 8px;
+  padding: 4px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(231, 76, 60, 0.35);
+  background: rgba(231, 76, 60, 0.1);
+  color: #e74c3c;
+  font-size: 0.72rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+
+  &:hover { background: rgba(231, 76, 60, 0.2); border-color: rgba(231, 76, 60, 0.55); }
+  &:focus-visible { outline: 2px solid #e74c3c; outline-offset: 2px; }
 }
 
 .vote {

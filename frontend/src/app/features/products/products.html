@@ -134,7 +134,7 @@
     <div class="empty-state"><p>No products found.</p></div>
   } @else {
     <div class="product-grid">
-      @for (p of products(); track p.id) {
+      @for (p of visibleProducts(); track p.id) {
         <article class="product-card">
           <button
             type="button"
@@ -166,7 +166,7 @@
                 type="button"
                 class="btn-cart"
                 [class.flash]="addedFlash()?.id === p.id"
-                [disabled]="p.stockQuantity <= 0 || remainingStock(p) <= 0"
+                [disabled]="p.stockQuantity <= 0 || remainingStock(p) <= 0 || addedFlash()?.id === p.id"
                 (click)="addToCart(p); $event.stopPropagation()"
                 [attr.aria-label]="'Add ' + p.name + ' to cart'">
                 @if (addedFlash()?.id === p.id) {
@@ -186,6 +186,20 @@
             }
           </div>
         </article>
+      }
+    </div>
+    <div
+      appInfiniteScroll
+      [disabled]="!hasMore() || loadingMore()"
+      (endReached)="loadMore()"
+      class="scroll-sentinel"
+      aria-hidden="true">
+      @if (loadingMore()) {
+        <span class="loading-more">Loading more… ({{ products().length }} so far)</span>
+      } @else if (hasMore()) {
+        <span class="loading-more">Scroll for more ({{ products().length }} loaded)</span>
+      } @else if (products().length > 0) {
+        <span class="loading-more done">All {{ products().length }} products loaded</span>
       }
     </div>
   }

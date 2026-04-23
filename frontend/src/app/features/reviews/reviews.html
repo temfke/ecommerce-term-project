@@ -41,7 +41,7 @@
     <div class="empty-state"><p>No reviews found.</p></div>
   } @else {
     <div class="card-grid">
-      @for (r of reviews(); track r.id) {
+      @for (r of visibleReviews(); track r.id) {
         <div class="card">
           <div class="card-header">
             <div>
@@ -51,7 +51,20 @@
             <span class="stars" [attr.aria-label]="r.starRating + ' out of 5 stars'">{{ starsDisplay(r.starRating) }}</span>
           </div>
           <div class="card-body">
-            <p>{{ r.reviewBody || 'No written review.' }}</p>
+            @if (r.reviewBody) {
+              <p class="review-body-text" [class.clamped]="isLong(r.reviewBody) && !isExpanded(r.id)">{{ r.reviewBody }}</p>
+              @if (isLong(r.reviewBody)) {
+                <button
+                  type="button"
+                  class="read-more-btn"
+                  (click)="toggleExpanded(r.id)"
+                  [attr.aria-expanded]="isExpanded(r.id)">
+                  {{ isExpanded(r.id) ? 'Show less' : 'Read more' }}
+                </button>
+              }
+            } @else {
+              <p class="review-body-text muted">No written review.</p>
+            }
           </div>
           <div class="card-footer">
             <span class="review-date">{{ r.createdAt | date:'mediumDate' }}</span>
@@ -67,6 +80,18 @@
             </div>
           </div>
         </div>
+      }
+    </div>
+    <div
+      appInfiniteScroll
+      [disabled]="!hasMore()"
+      (endReached)="loadMore()"
+      class="scroll-sentinel"
+      aria-hidden="true">
+      @if (hasMore()) {
+        <span class="loading-more">Loading more… ({{ visibleReviews().length }} / {{ reviews().length }})</span>
+      } @else if (reviews().length > 0) {
+        <span class="loading-more done">All {{ reviews().length }} reviews loaded</span>
       }
     </div>
   }

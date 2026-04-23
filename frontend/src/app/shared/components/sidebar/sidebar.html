@@ -8,20 +8,32 @@
   </div>
 
   <nav class="sidebar-nav">
-    @for (item of navItems(); track item.route) {
-      <a
-        class="nav-item"
-        [routerLink]="item.route"
-        routerLinkActive="active"
-        [attr.aria-label]="item.route === '/orders' && cart.count() > 0 ? item.label + ', ' + cart.count() + ' items in cart' : item.label">
-        <span class="nav-icon" aria-hidden="true">{{ item.icon }}</span>
+    @for (section of sections(); track section.title) {
+      <div class="nav-section">
         @if (!collapsed()) {
-          <span class="nav-label">{{ item.label }}</span>
+          <div class="nav-section-title">{{ section.title }}</div>
+        } @else {
+          <div class="nav-section-divider" aria-hidden="true"></div>
         }
-        @if (item.route === '/orders' && cart.count() > 0) {
-          <span class="cart-badge" aria-hidden="true">{{ cart.count() }}</span>
+        @for (item of section.items; track item.route) {
+          <a
+            class="nav-item"
+            [routerLink]="item.route"
+            routerLinkActive="active"
+            [attr.aria-label]="item.route === '/cart' && cart.count() > 0 ? item.label + ', ' + cart.count() + ' items in cart' : item.label">
+            <span class="nav-icon" aria-hidden="true">{{ item.icon }}</span>
+            @if (!collapsed()) {
+              <span class="nav-label">{{ item.label }}</span>
+              @if (item.badge) {
+                <span class="nav-badge">{{ item.badge }}</span>
+              }
+            }
+            @if (item.route === '/cart' && cart.count() > 0) {
+              <span class="cart-badge" aria-hidden="true">{{ cart.count() }}</span>
+            }
+          </a>
         }
-      </a>
+      </div>
     }
   </nav>
 

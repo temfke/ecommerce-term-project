@@ -80,7 +80,7 @@
               type="button"
               class="btn-primary btn-add-cart"
               [class.flash]="addedFlash()"
-              [disabled]="maxAddable() <= 0"
+              [disabled]="maxAddable() <= 0 || addedFlash()"
               (click)="addToCart()">
               @if (addedFlash()) {
                 Added to cart ✓
@@ -89,7 +89,7 @@
               } @else if (maxAddable() <= 0) {
                 Max in cart
               } @else {
-                Add {{ detailQty() }} to cart
+                Add to cart
               }
             </button>
             <button
@@ -315,6 +315,13 @@
                         <span class="vote-icon" aria-hidden="true">👎</span>
                         {{ r.totalVotes - r.helpfulVotes }}
                       </span>
+                      <button
+                        type="button"
+                        class="review-delete-btn"
+                        (click)="deleteReview(r)"
+                        aria-label="Delete your review">
+                        Delete
+                      </button>
                     </div>
                   </li>
                 }
@@ -368,6 +375,15 @@
                         <span class="vote-icon" aria-hidden="true">👎</span>
                         {{ r.totalVotes - r.helpfulVotes }}
                       </button>
+                      @if (isAdmin()) {
+                        <button
+                          type="button"
+                          class="review-delete-btn"
+                          (click)="deleteReview(r)"
+                          [attr.aria-label]="'Delete review by ' + r.userName">
+                          Delete
+                        </button>
+                      }
                     </div>
                   </li>
                 }

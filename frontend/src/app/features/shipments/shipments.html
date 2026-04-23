@@ -34,7 +34,7 @@
           </tr>
         </thead>
         <tbody>
-          @for (s of shipments(); track s.id) {
+          @for (s of visibleShipments(); track s.id) {
             <tr>
               <td class="mono">{{ s.trackingId }}</td>
               <td class="mono">#{{ s.orderId }}</td>
@@ -57,6 +57,18 @@
           }
         </tbody>
       </table>
+    </div>
+    <div
+      appInfiniteScroll
+      [disabled]="!hasMore()"
+      (endReached)="loadMore()"
+      class="scroll-sentinel"
+      aria-hidden="true">
+      @if (hasMore()) {
+        <span class="loading-more">Loading more… ({{ visibleShipments().length }} / {{ shipments().length }})</span>
+      } @else {
+        <span class="loading-more done">All {{ shipments().length }} shipments loaded</span>
+      }
     </div>
   }
 </div>

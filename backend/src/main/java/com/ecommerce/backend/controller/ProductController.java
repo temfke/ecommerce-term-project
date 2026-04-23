@@ -27,9 +27,10 @@ public class ProductController {
             @RequestParam(required = false) Long storeId,
             @RequestParam(required = false, defaultValue = "id") String sortBy,
             @RequestParam(required = false, defaultValue = "desc") String sortDir,
-            @RequestParam(required = false, defaultValue = "100") int limit) {
+            @RequestParam(required = false, defaultValue = "100") int limit,
+            @RequestParam(required = false, defaultValue = "0") int offset) {
         return ResponseEntity.ok(productService.filterAndSortProducts(
-                search, categoryId, storeId, sortBy, sortDir, limit));
+                search, categoryId, storeId, sortBy, sortDir, limit, offset));
     }
 
     @GetMapping("/{id}")

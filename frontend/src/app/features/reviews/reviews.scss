@@ -9,3 +9,51 @@
   font-size: 0.78rem;
   color: #666;
 }
+
+.card-grid {
+  align-items: start;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+}
+
+.card-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.review-body-text {
+  margin: 0;
+  white-space: pre-line;
+
+  &.clamped {
+    display: -webkit-box;
+    -webkit-line-clamp: 6;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  &.muted {
+    color: #555;
+    font-style: italic;
+  }
+}
+
+.read-more-btn {
+  align-self: flex-start;
+  background: none;
+  border: none;
+  padding: 0;
+  margin-top: 4px;
+  color: #f87171;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+
+  &:hover { text-decoration: underline; }
+  &:focus-visible { outline: 2px solid #dc2626; outline-offset: 2px; border-radius: 2px; }
+}

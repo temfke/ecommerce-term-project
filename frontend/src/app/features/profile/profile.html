@@ -150,23 +150,89 @@
 
           <div class="form-row">
             <div class="form-group">
-              <label for="addr-city">City</label>
-              <input id="addr-city" formControlName="city" />
+              <label for="addr-country-select">Country</label>
+              <select
+                id="addr-country-select"
+                [value]="countrySelection()"
+                (change)="onCountrySelect($any($event.target).value)">
+                <option value="" disabled>-- Select country --</option>
+                @for (c of countries; track c.name) {
+                  <option [value]="c.name">{{ c.name }}</option>
+                }
+                <option [value]="OTHER">Other…</option>
+              </select>
+              @if (countryIsOther()) {
+                <input
+                  class="other-input"
+                  placeholder="Type country name"
+                  formControlName="country"
+                  aria-label="Custom country" />
+              }
             </div>
             <div class="form-group">
-              <label for="addr-state">State / Region</label>
-              <input id="addr-state" formControlName="state" />
+              <label for="addr-city-select">City</label>
+              <select
+                id="addr-city-select"
+                [value]="citySelection()"
+                [disabled]="!countrySelection() || countryIsOther()"
+                (change)="onCitySelect($any($event.target).value)">
+                <option value="" disabled>
+                  @if (!countrySelection()) {
+                    -- Select a country first --
+                  } @else {
+                    -- Select city --
+                  }
+                </option>
+                @for (ci of availableCities(); track ci.name) {
+                  <option [value]="ci.name">{{ ci.name }}</option>
+                }
+                @if (countrySelection() && !countryIsOther()) {
+                  <option [value]="OTHER">Other…</option>
+                }
+              </select>
+              @if (cityIsOther() || countryIsOther()) {
+                <input
+                  class="other-input"
+                  placeholder="Type city name"
+                  formControlName="city"
+                  aria-label="Custom city" />
+              }
             </div>
           </div>
 
           <div class="form-row">
             <div class="form-group">
-              <label for="addr-postal">Postal Code</label>
-              <input id="addr-postal" formControlName="postalCode" />
+              <label for="addr-region-select">State / Region</label>
+              <select
+                id="addr-region-select"
+                [value]="regionSelection()"
+                [disabled]="!citySelection() || cityIsOther() || countryIsOther()"
+                (change)="onRegionSelect($any($event.target).value)">
+                <option value="">
+                  @if (!citySelection()) {
+                    -- Select a city first --
+                  } @else {
+                    -- None / Select region --
+                  }
+                </option>
+                @for (r of availableRegions(); track r) {
+                  <option [value]="r">{{ r }}</option>
+                }
+                @if (citySelection() && !cityIsOther() && !countryIsOther()) {
+                  <option [value]="OTHER">Other…</option>
+                }
+              </select>
+              @if (regionIsOther() || cityIsOther() || countryIsOther()) {
+                <input
+                  class="other-input"
+                  placeholder="Type region (optional)"
+                  formControlName="state"
+                  aria-label="Custom region" />
+              }
             </div>
             <div class="form-group">
-              <label for="addr-country">Country</label>
-              <input id="addr-country" formControlName="country" />
+              <label for="addr-postal">Postal Code</label>
+              <input id="addr-postal" formControlName="postalCode" />
             </div>
           </div>
 

@@ -85,7 +85,19 @@ public class OrderService {
     }
 
     public List<OrderResponse> getAllOrders() {
-        return orderRepository.findAll().stream().map(this::toResponse).toList();
+        return orderRepository.findAllOrderedByCreatedAt().stream().map(this::toResponse).toList();
+    }
+
+    public List<OrderResponse> getOrdersForStoreOwner(Long ownerId) {
+        return orderRepository.findByStoreOwnerId(ownerId).stream().map(this::toResponse).toList();
+    }
+
+    public List<OrderResponse> getOrdersForCurrentUser(User currentUser) {
+        return switch (currentUser.getRole()) {
+            case ADMIN -> getAllOrders();
+            case CORPORATE -> getOrdersForStoreOwner(currentUser.getId());
+            default -> getOrdersByUser(currentUser.getId());
+        };
     }
 
     public OrderResponse getOrderById(Long id, User currentUser) {

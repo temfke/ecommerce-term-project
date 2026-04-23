@@ -32,7 +32,7 @@
           </tr>
         </thead>
         <tbody>
-          @for (u of users(); track u.id) {
+          @for (u of visibleUsers(); track u.id) {
             <tr>
               <td>{{ u.firstName }} {{ u.lastName }}</td>
               <td>{{ u.email }}</td>
@@ -50,6 +50,18 @@
           }
         </tbody>
       </table>
+    </div>
+    <div
+      appInfiniteScroll
+      [disabled]="!hasMore()"
+      (endReached)="loadMore()"
+      class="scroll-sentinel"
+      aria-hidden="true">
+      @if (hasMore()) {
+        <span class="loading-more">Loading more… ({{ visibleUsers().length }} / {{ users().length }})</span>
+      } @else {
+        <span class="loading-more done">All {{ users().length }} customers loaded</span>
+      }
     </div>
   }
 </div>

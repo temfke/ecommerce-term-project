@@ -4,10 +4,13 @@ import { ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
 import { Api } from '../../core/services/api';
 import { Auth } from '../../core/services/auth';
 import { Review } from '../../core/models/review.model';
+import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll.directive';
+
+const PAGE_SIZE = 200;
 
 @Component({
   selector: 'app-reviews',
-  imports: [DatePipe, ReactiveFormsModule],
+  imports: [DatePipe, ReactiveFormsModule, InfiniteScrollDirective],
   templateUrl: './reviews.html',
   styleUrl: './reviews.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -21,6 +24,13 @@ export class Reviews implements OnInit {
   readonly loading = signal(true);
   readonly showForm = signal(false);
   readonly error = signal('');
+  readonly displayLimit = signal(PAGE_SIZE);
+  readonly expandedIds = signal<ReadonlySet<number>>(new Set());
+
+  readonly CLAMP_THRESHOLD = 280;
+
+  readonly visibleReviews = computed(() => this.reviews().slice(0, this.displayLimit()));
+  readonly hasMore = computed(() => this.displayLimit() < this.reviews().length);
 
   readonly isIndividual = computed(() => this.auth.userRole() === 'INDIVIDUAL');
   readonly isAdmin = computed(() => this.auth.userRole() === 'ADMIN');
@@ -37,10 +47,17 @@ export class Reviews implements OnInit {
 
   loadReviews() {
     this.loading.set(true);
-    this.api.getMyReviews().subscribe({
+    this.displayLimit.set(PAGE_SIZE);
+    const obs = this.isIndividual() ? this.api.getMyReviews() : this.api.getReviews();
+    obs.subscribe({
       next: (data) => { this.reviews.set(data); this.loading.set(false); },
       error: () => this.loading.set(false),
     });
+  }
+
+  loadMore() {
+    if (!this.hasMore()) return;
+    this.displayLimit.update(n => Math.min(n + PAGE_SIZE, this.reviews().length));
   }
 
   openCreate() {
@@ -68,5 +85,22 @@ export class Reviews implements OnInit {
 
   starsDisplay(rating: number): string {
     return '★'.repeat(rating) + '☆'.repeat(5 - rating);
+  }
+
+  isExpanded(id: number): boolean {
+    return this.expandedIds().has(id);
+  }
+
+  isLong(body: string | null | undefined): boolean {
+    return !!body && body.length > this.CLAMP_THRESHOLD;
+  }
+
+  toggleExpanded(id: number) {
+    this.expandedIds.update(curr => {
+      const next = new Set(curr);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   }
 }

@@ -33,6 +33,11 @@ public class OrderController {
         return ResponseEntity.ok(orderService.getOrdersByUser(currentUser.getId()));
     }
 
+    @GetMapping
+    public ResponseEntity<List<OrderResponse>> getOrders(@AuthenticationPrincipal User currentUser) {
+        return ResponseEntity.ok(orderService.getOrdersForCurrentUser(currentUser));
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<OrderResponse> getOrderById(
             @PathVariable Long id,

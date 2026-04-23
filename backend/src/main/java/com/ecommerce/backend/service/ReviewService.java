@@ -104,15 +104,44 @@ public class ReviewService {
     }
 
     public List<ReviewResponse> getAllReviews() {
-        return reviewRepository.findAll().stream()
+        return reviewRepository.findAllOrderedByCreatedAt().stream()
                 .map(r -> toResponse(r, Collections.emptyMap()))
                 .toList();
+    }
+
+    public List<ReviewResponse> getReviewsForStoreOwner(Long ownerId) {
+        return reviewRepository.findByStoreOwnerId(ownerId).stream()
+                .map(r -> toResponse(r, Collections.emptyMap()))
+                .toList();
+    }
+
+    public List<ReviewResponse> getReviewsForCurrentUser(User currentUser) {
+        return switch (currentUser.getRole()) {
+            case ADMIN -> getAllReviews();
+            case CORPORATE -> getReviewsForStoreOwner(currentUser.getId());
+            default -> getReviewsByUser(currentUser.getId());
+        };
     }
 
     @Transactional
     public void deleteReview(Long id) {
         if (!reviewRepository.existsById(id)) {
             throw new ResourceNotFoundException("Review not found");
+        }
+        reviewVoteRepository.deleteByReviewId(id);
+        reviewRepository.deleteById(id);
+    }
+
+    @Transactional
+    public void deleteReview(Long id, User currentUser) {
+        Review review = reviewRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Review not found"));
+        boolean isOwner = review.getUser() != null
+                && currentUser != null
+                && review.getUser().getId().equals(currentUser.getId());
+        boolean isAdmin = currentUser != null && "ADMIN".equals(currentUser.getRole().name());
+        if (!isOwner && !isAdmin) {
+            throw new BadRequestException("You can only delete your own reviews");
         }
         reviewVoteRepository.deleteByReviewId(id);
         reviewRepository.deleteById(id);

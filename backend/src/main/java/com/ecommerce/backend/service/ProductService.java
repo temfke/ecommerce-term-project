@@ -45,19 +45,30 @@ public class ProductService {
 
     public List<ProductResponse> filterAndSortProducts(
             String search, Long categoryId, Long storeId,
-            String sortBy, String sortDir, int limit) {
+            String sortBy, String sortDir, int limit, int offset) {
 
         String safeSortBy = ALLOWED_SORT_FIELDS.contains(sortBy) ? sortBy : "id";
         Sort.Direction dir = "asc".equalsIgnoreCase(sortDir)
                 ? Sort.Direction.ASC : Sort.Direction.DESC;
-        int safeLimit = Math.min(Math.max(limit, 1), 200);
+        int safeLimit = Math.min(Math.max(limit, 1), 500);
+        int safeOffset = Math.max(offset, 0);
+        int page = safeOffset / safeLimit;
+        int leadingSkip = safeOffset % safeLimit;
 
         String safeSearch = (search != null && !search.isBlank()) ? search : null;
 
+        if (leadingSkip == 0) {
+            return productRepository.filterProducts(
+                            safeSearch, categoryId, storeId,
+                            PageRequest.of(page, safeLimit, Sort.by(dir, safeSortBy)))
+                    .stream().map(this::toResponse).toList();
+        }
+
+        // Misaligned offset/limit: fetch a window starting at the requested offset.
         return productRepository.filterProducts(
                         safeSearch, categoryId, storeId,
-                        PageRequest.of(0, safeLimit, Sort.by(dir, safeSortBy)))
-                .stream().map(this::toResponse).toList();
+                        PageRequest.of(0, safeOffset + safeLimit, Sort.by(dir, safeSortBy)))
+                .stream().skip(safeOffset).limit(safeLimit).map(this::toResponse).toList();
     }
 
     public ProductResponse getProductById(Long id) {

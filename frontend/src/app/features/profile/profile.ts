@@ -4,6 +4,7 @@ import { Api } from '../../core/services/api';
 import { Auth } from '../../core/services/auth';
 import { User } from '../../core/models/user.model';
 import { Address } from '../../core/models/address.model';
+import { LOCATIONS, LocationCity, LocationCountry } from '../../core/data/locations';
 
 @Component({
   selector: 'app-profile',
@@ -61,6 +62,27 @@ export class Profile implements OnInit {
     country: ['', [Validators.required, Validators.maxLength(100)]],
     isDefault: [false],
   });
+
+  readonly countries = LOCATIONS;
+  readonly OTHER = '__other__';
+
+  readonly countrySelection = signal<string>('');
+  readonly citySelection = signal<string>('');
+  readonly regionSelection = signal<string>('');
+
+  readonly availableCities = computed<LocationCity[]>(() => {
+    const country = this.countries.find(c => c.name === this.countrySelection());
+    return country?.cities ?? [];
+  });
+
+  readonly availableRegions = computed<string[]>(() => {
+    const city = this.availableCities().find(c => c.name === this.citySelection());
+    return city?.regions ?? [];
+  });
+
+  readonly countryIsOther = computed(() => this.countrySelection() === this.OTHER);
+  readonly cityIsOther = computed(() => this.citySelection() === this.OTHER);
+  readonly regionIsOther = computed(() => this.regionSelection() === this.OTHER);
 
   ngOnInit() {
     this.api.getCurrentUser().subscribe({
@@ -147,14 +169,68 @@ export class Profile implements OnInit {
         country: address.country,
         isDefault: address.isDefault,
       });
+      this.syncSelectionsFromForm(address.country, address.city, address.state ?? '');
     } else {
       this.editingAddressId.set(null);
       this.addressForm.reset({
         label: '', line1: '', line2: '', city: '', state: '',
         postalCode: '', country: '', isDefault: this.addresses().length === 0,
       });
+      this.countrySelection.set('');
+      this.citySelection.set('');
+      this.regionSelection.set('');
     }
     this.addressFormOpen.set(true);
+  }
+
+  private syncSelectionsFromForm(country: string, city: string, region: string) {
+    const matchedCountry = this.countries.find(c => c.name === country);
+    if (matchedCountry) {
+      this.countrySelection.set(matchedCountry.name);
+      const matchedCity = matchedCountry.cities.find(ci => ci.name === city);
+      if (matchedCity) {
+        this.citySelection.set(matchedCity.name);
+        const matchedRegion = matchedCity.regions.find(r => r === region);
+        this.regionSelection.set(matchedRegion ?? (region ? this.OTHER : ''));
+      } else {
+        this.citySelection.set(city ? this.OTHER : '');
+        this.regionSelection.set(region ? this.OTHER : '');
+      }
+    } else {
+      this.countrySelection.set(country ? this.OTHER : '');
+      this.citySelection.set(city ? this.OTHER : '');
+      this.regionSelection.set(region ? this.OTHER : '');
+    }
+  }
+
+  onCountrySelect(value: string) {
+    this.countrySelection.set(value);
+    this.citySelection.set('');
+    this.regionSelection.set('');
+    if (value === this.OTHER) {
+      this.addressForm.patchValue({ country: '', city: '', state: '' });
+    } else {
+      this.addressForm.patchValue({ country: value, city: '', state: '' });
+    }
+  }
+
+  onCitySelect(value: string) {
+    this.citySelection.set(value);
+    this.regionSelection.set('');
+    if (value === this.OTHER) {
+      this.addressForm.patchValue({ city: '', state: '' });
+    } else {
+      this.addressForm.patchValue({ city: value, state: '' });
+    }
+  }
+
+  onRegionSelect(value: string) {
+    this.regionSelection.set(value);
+    if (value === this.OTHER) {
+      this.addressForm.patchValue({ state: '' });
+    } else {
+      this.addressForm.patchValue({ state: value });
+    }
   }
 
   closeAddressForm() {

@@ -1,14 +1,18 @@
 import { Component, ChangeDetectionStrategy, inject, signal, computed, OnInit } from '@angular/core';
 import { DecimalPipe, DatePipe } from '@angular/common';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { Api } from '../../core/services/api';
 import { Auth } from '../../core/services/auth';
 import { Cart } from '../../core/services/cart';
 import { Order, OrderStatus } from '../../core/models/order.model';
+import { Address } from '../../core/models/address.model';
+import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll.directive';
+
+const PAGE_SIZE = 200;
 
 @Component({
   selector: 'app-orders',
-  imports: [DecimalPipe, DatePipe],
+  imports: [DecimalPipe, DatePipe, RouterLink, InfiniteScrollDirective],
   templateUrl: './orders.html',
   styleUrl: './orders.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -22,14 +26,24 @@ export class Orders implements OnInit {
 
   readonly orders = signal<Order[]>([]);
   readonly loading = signal(true);
+  readonly view = signal<'cart' | 'orders'>('orders');
+  readonly displayLimit = signal(PAGE_SIZE);
+
+  readonly visibleOrders = computed(() => this.orders().slice(0, this.displayLimit()));
+  readonly hasMore = computed(() => this.displayLimit() < this.orders().length);
 
   readonly isAdmin = computed(() => this.auth.userRole() === 'ADMIN');
   readonly isCorporate = computed(() => this.auth.userRole() === 'CORPORATE');
   readonly isIndividual = computed(() => this.auth.userRole() === 'INDIVIDUAL');
+  readonly showCart = computed(() => this.view() === 'cart' && this.isIndividual());
+  readonly showOrders = computed(() => this.view() === 'orders');
+  readonly pageTitle = computed(() => this.showCart() ? 'Cart' : 'Orders');
 
   readonly statuses: OrderStatus[] = ['PENDING', 'CONFIRMED', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED', 'RETURNED'];
 
   readonly shippingAddress = signal('');
+  readonly addresses = signal<Address[]>([]);
+  readonly selectedAddressId = signal<number | 'manual'>('manual');
   readonly paymentLoading = signal(false);
   readonly paymentError = signal('');
   readonly paymentSuccess = signal('');
@@ -40,16 +54,74 @@ export class Orders implements OnInit {
   });
 
   ngOnInit() {
+    const routeView = this.route.snapshot.data['view'];
+    if (routeView === 'cart' && this.isIndividual()) {
+      this.view.set('cart');
+    } else {
+      this.view.set('orders');
+    }
     this.loadOrders();
+    if (this.isIndividual()) {
+      this.loadAddresses();
+    }
     this.handleStripeRedirect();
   }
 
+  loadAddresses() {
+    this.api.getMyAddresses().subscribe({
+      next: (data) => {
+        this.addresses.set(data);
+        const def = data.find(a => a.isDefault) ?? data[0];
+        if (def) {
+          this.selectedAddressId.set(def.id);
+          this.shippingAddress.set(this.formatAddress(def));
+        }
+      },
+      error: () => this.addresses.set([]),
+    });
+  }
+
+  formatAddress(a: Address): string {
+    const parts = [
+      a.line1,
+      a.line2 || '',
+      [a.city, a.state, a.postalCode].filter(Boolean).join(', '),
+      a.country,
+    ].filter(p => p && p.trim().length > 0);
+    return parts.join('\n');
+  }
+
+  onAddressSelect(value: string) {
+    if (value === 'manual') {
+      this.selectedAddressId.set('manual');
+      this.shippingAddress.set('');
+      return;
+    }
+    const id = Number(value);
+    const addr = this.addresses().find(a => a.id === id);
+    if (addr) {
+      this.selectedAddressId.set(id);
+      this.shippingAddress.set(this.formatAddress(addr));
+    }
+  }
+
   loadOrders() {
+    if (!this.showOrders()) {
+      this.loading.set(false);
+      return;
+    }
     this.loading.set(true);
-    this.api.getMyOrders().subscribe({
+    this.displayLimit.set(PAGE_SIZE);
+    const obs = this.isIndividual() ? this.api.getMyOrders() : this.api.getOrders();
+    obs.subscribe({
       next: (data) => { this.orders.set(data); this.loading.set(false); },
       error: () => this.loading.set(false),
     });
+  }
+
+  loadMoreOrders() {
+    if (!this.hasMore()) return;
+    this.displayLimit.update(n => Math.min(n + PAGE_SIZE, this.orders().length));
   }
 
   updateStatus(id: number, status: string) {
@@ -80,6 +152,7 @@ export class Orders implements OnInit {
 
   updateShippingAddress(value: string) {
     this.shippingAddress.set(value);
+    this.selectedAddressId.set('manual');
   }
 
   payWithStripe() {

@@ -22,6 +22,7 @@ export class Api {
     sortBy?: string;
     sortDir?: 'asc' | 'desc';
     limit?: number;
+    offset?: number;
   } = {}) {
     const parts: string[] = [];
     if (opts.search) parts.push(`search=${encodeURIComponent(opts.search)}`);
@@ -30,6 +31,7 @@ export class Api {
     if (opts.sortBy) parts.push(`sortBy=${opts.sortBy}`);
     if (opts.sortDir) parts.push(`sortDir=${opts.sortDir}`);
     if (opts.limit != null) parts.push(`limit=${opts.limit}`);
+    if (opts.offset != null) parts.push(`offset=${opts.offset}`);
     const qs = parts.length ? `?${parts.join('&')}` : '';
     return this.http.get<Product[]>(`${this.API}/products${qs}`);
   }
@@ -41,6 +43,7 @@ export class Api {
 
   // Orders
   getMyOrders() { return this.http.get<Order[]>(`${this.API}/orders/my`); }
+  getOrders() { return this.http.get<Order[]>(`${this.API}/orders`); }
   getOrdersByStore(storeId: number) { return this.http.get<Order[]>(`${this.API}/orders/store/${storeId}`); }
   getOrder(id: number) { return this.http.get<Order>(`${this.API}/orders/${id}`); }
   createOrder(req: OrderRequest) { return this.http.post<Order>(`${this.API}/orders`, req); }
@@ -75,6 +78,7 @@ export class Api {
     return this.http.get<Review[]>(`${this.API}/reviews/product/${productId}/mine`);
   }
   getMyReviews() { return this.http.get<Review[]>(`${this.API}/reviews/my`); }
+  getReviews() { return this.http.get<Review[]>(`${this.API}/reviews`); }
   getReviewsByStore(storeId: number) { return this.http.get<Review[]>(`${this.API}/reviews/store/${storeId}`); }
   createReview(req: ReviewRequest) { return this.http.post<Review>(`${this.API}/reviews`, req); }
   voteOnReview(id: number, type: ReviewVoteType) {

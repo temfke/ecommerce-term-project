@@ -331,4 +331,25 @@ export class ProductDetail implements OnInit {
     this.formBody.set('');
     this.submitError.set('');
   }
+
+  deleteReview(review: Review) {
+    const isOwner = this.isMyReview(review);
+    if (!this.isAdmin() && !isOwner) return;
+    const prompt = isOwner
+      ? 'Delete your review? This cannot be undone.'
+      : `Delete this review by ${review.userName}? This cannot be undone.`;
+    if (!confirm(prompt)) return;
+    this.api.deleteReview(review.id).subscribe({
+      next: () => {
+        this.reviews.update(list => list.filter(r => r.id !== review.id));
+        this.summary.update(s => {
+          const newCount = Math.max(0, s.count - 1);
+          if (newCount === 0) return { count: 0, averageRating: 0 };
+          const totalStars = s.averageRating * s.count - review.starRating;
+          return { count: newCount, averageRating: Math.round((totalStars / newCount) * 10) / 10 };
+        });
+      },
+      error: (err) => this.voteError.set(err?.error?.message ?? 'Failed to delete review.'),
+    });
+  }
 }

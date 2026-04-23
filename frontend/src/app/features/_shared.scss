@@ -4,6 +4,23 @@
   max-width: 1200px;
 }
 
+.scroll-sentinel {
+  display: flex;
+  justify-content: center;
+  padding: 24px 0 8px;
+  min-height: 32px;
+
+  .loading-more {
+    font-size: 0.78rem;
+    color: #6b6b80;
+    letter-spacing: 0.4px;
+
+    &.done {
+      color: #4a4a5a;
+    }
+  }
+}
+
 .page-header {
   display: flex;
   align-items: center;

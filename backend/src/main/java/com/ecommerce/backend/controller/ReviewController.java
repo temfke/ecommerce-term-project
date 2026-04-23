@@ -51,6 +51,11 @@ public class ReviewController {
         return ResponseEntity.ok(reviewService.getReviewsByUser(currentUser.getId()));
     }
 
+    @GetMapping
+    public ResponseEntity<List<ReviewResponse>> getReviews(@AuthenticationPrincipal User currentUser) {
+        return ResponseEntity.ok(reviewService.getReviewsForCurrentUser(currentUser));
+    }
+
     @GetMapping("/store/{storeId}")
     @PreAuthorize("hasAnyRole('CORPORATE', 'ADMIN')")
     public ResponseEntity<List<ReviewResponse>> getReviewsByStore(
@@ -68,9 +73,10 @@ public class ReviewController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Void> deleteReview(@PathVariable Long id) {
-        reviewService.deleteReview(id);
+    public ResponseEntity<Void> deleteReview(
+            @PathVariable Long id,
+            @AuthenticationPrincipal User currentUser) {
+        reviewService.deleteReview(id, currentUser);
         return ResponseEntity.noContent().build();
     }
 }

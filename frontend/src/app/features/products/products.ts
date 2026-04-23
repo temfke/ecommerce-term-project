@@ -8,13 +8,17 @@ import { Cart } from '../../core/services/cart';
 import { Product, ProductRequest } from '../../core/models/product.model';
 import { Store } from '../../core/models/store.model';
 import { Category } from '../../core/models/dashboard.model';
+import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll.directive';
 
 type SortBy = 'id' | 'name' | 'unitPrice' | 'stockQuantity' | 'createdAt';
 type SortDir = 'asc' | 'desc';
 
+const INITIAL_PAGE_SIZE = 200;
+const NEXT_PAGE_SIZE = 100;
+
 @Component({
   selector: 'app-products',
-  imports: [DecimalPipe, ReactiveFormsModule],
+  imports: [DecimalPipe, ReactiveFormsModule, InfiniteScrollDirective],
   templateUrl: './products.html',
   styleUrl: './products.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -30,9 +34,14 @@ export class Products implements OnInit {
   readonly stores = signal<Store[]>([]);
   readonly categories = signal<Category[]>([]);
   readonly loading = signal(true);
+  readonly loadingMore = signal(false);
+  readonly endReached = signal(false);
   readonly showForm = signal(false);
   readonly editingId = signal<number | null>(null);
   readonly error = signal('');
+
+  readonly visibleProducts = computed(() => this.products());
+  readonly hasMore = computed(() => !this.endReached());
 
   readonly addedFlash = signal<{ id: number; msg: string } | null>(null);
 
@@ -77,19 +86,51 @@ export class Products implements OnInit {
 
   loadProducts() {
     this.loading.set(true);
+    this.endReached.set(false);
+    this.products.set([]);
     this.api.getProducts({
       search: this.search() || undefined,
       categoryId: this.categoryFilter(),
       storeId: this.storeFilter(),
       sortBy: this.sortBy(),
       sortDir: this.sortDir(),
-      limit: 100,
+      limit: INITIAL_PAGE_SIZE,
+      offset: 0,
     }).subscribe({
       next: (data) => {
         this.products.set(data);
+        if (data.length < INITIAL_PAGE_SIZE) this.endReached.set(true);
         this.loading.set(false);
       },
-      error: () => this.loading.set(false),
+      error: () => {
+        this.loading.set(false);
+        this.endReached.set(true);
+      },
+    });
+  }
+
+  loadMore() {
+    if (this.loadingMore() || this.endReached() || this.loading()) return;
+    this.loadingMore.set(true);
+    const offset = this.products().length;
+    this.api.getProducts({
+      search: this.search() || undefined,
+      categoryId: this.categoryFilter(),
+      storeId: this.storeFilter(),
+      sortBy: this.sortBy(),
+      sortDir: this.sortDir(),
+      limit: NEXT_PAGE_SIZE,
+      offset,
+    }).subscribe({
+      next: (data) => {
+        this.products.update(curr => [...curr, ...data]);
+        if (data.length < NEXT_PAGE_SIZE) this.endReached.set(true);
+        this.loadingMore.set(false);
+      },
+      error: () => {
+        this.loadingMore.set(false);
+        this.endReached.set(true);
+      },
     });
   }
 
