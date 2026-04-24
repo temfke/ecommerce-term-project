@@ -1,8 +1,11 @@
-import { Component, ChangeDetectionStrategy, inject, signal, OnInit } from '@angular/core';
+import { Component, ChangeDetectionStrategy, inject, signal, computed, OnInit } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
 import { Api } from '../../core/services/api';
+import { Auth } from '../../core/services/auth';
 import { Store } from '../../core/models/store.model';
+
+const STATUSES = ['PENDING_APPROVAL', 'OPEN', 'SUSPENDED', 'CLOSED'] as const;
 
 @Component({
   selector: 'app-store-settings',
@@ -13,6 +16,7 @@ import { Store } from '../../core/models/store.model';
 })
 export class StoreSettings implements OnInit {
   private readonly api = inject(Api);
+  private readonly auth = inject(Auth);
   private readonly fb = inject(FormBuilder);
 
   readonly stores = signal<Store[]>([]);
@@ -21,6 +25,10 @@ export class StoreSettings implements OnInit {
   readonly editingId = signal<number | null>(null);
   readonly error = signal('');
   readonly success = signal('');
+  readonly statusUpdatingId = signal<number | null>(null);
+
+  readonly isAdmin = computed(() => this.auth.userRole() === 'ADMIN');
+  readonly statuses = STATUSES;
 
   readonly form = this.fb.nonNullable.group({
     name: ['', Validators.required],
@@ -34,9 +42,27 @@ export class StoreSettings implements OnInit {
 
   loadStores() {
     this.loading.set(true);
-    this.api.getMyStores().subscribe({
+    const obs = this.isAdmin() ? this.api.getStores() : this.api.getMyStores();
+    obs.subscribe({
       next: (data) => { this.stores.set(data); this.loading.set(false); },
       error: () => this.loading.set(false),
+    });
+  }
+
+  updateStatus(store: Store, status: string) {
+    if (!this.isAdmin() || status === store.status) return;
+    this.statusUpdatingId.set(store.id);
+    this.error.set('');
+    this.api.updateStoreStatus(store.id, status).subscribe({
+      next: (updated) => {
+        this.stores.update(list => list.map(s => s.id === updated.id ? updated : s));
+        this.statusUpdatingId.set(null);
+        this.success.set(`${updated.name} → ${updated.status}`);
+      },
+      error: (err) => {
+        this.statusUpdatingId.set(null);
+        this.error.set(err?.error?.message ?? 'Failed to update status.');
+      },
     });
   }
 

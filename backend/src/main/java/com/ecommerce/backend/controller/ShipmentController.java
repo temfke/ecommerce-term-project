@@ -1,11 +1,14 @@
 package com.ecommerce.backend.controller;
 
 import com.ecommerce.backend.dto.ShipmentResponse;
+import com.ecommerce.backend.entity.User;
+import com.ecommerce.backend.enums.Role;
 import com.ecommerce.backend.enums.ShipmentStatus;
 import com.ecommerce.backend.service.ShipmentService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -37,11 +40,13 @@ public class ShipmentController {
     @GetMapping
     @PreAuthorize("hasAnyRole('CORPORATE', 'ADMIN')")
     public ResponseEntity<List<ShipmentResponse>> getAllShipments(
-            @RequestParam(required = false) ShipmentStatus status) {
-        if (status != null) {
-            return ResponseEntity.ok(shipmentService.getShipmentsByStatus(status));
-        }
-        return ResponseEntity.ok(shipmentService.getAllShipments());
+            @RequestParam(required = false) ShipmentStatus status,
+            @RequestParam(required = false, defaultValue = "200") int limit,
+            @RequestParam(required = false, defaultValue = "0") int offset,
+            @AuthenticationPrincipal User currentUser) {
+        Long ownerScopeId = (currentUser != null && currentUser.getRole() == Role.CORPORATE)
+                ? currentUser.getId() : null;
+        return ResponseEntity.ok(shipmentService.getShipmentsPaged(status, limit, offset, ownerScopeId));
     }
 
     @PatchMapping("/{id}/status")

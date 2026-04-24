@@ -9,6 +9,7 @@ import com.ecommerce.backend.exception.ResourceNotFoundException;
 import com.ecommerce.backend.repository.OrderRepository;
 import com.ecommerce.backend.repository.ShipmentRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -70,6 +71,35 @@ public class ShipmentService {
 
     public List<ShipmentResponse> getShipmentsByStatus(ShipmentStatus status) {
         return shipmentRepository.findByStatus(status).stream().map(this::toResponse).toList();
+    }
+
+    public List<ShipmentResponse> getShipmentsPaged(ShipmentStatus status, int limit, int offset, Long ownerScopeId) {
+        int safeLimit = Math.min(Math.max(limit, 1), 500);
+        int safeOffset = Math.max(offset, 0);
+        int page = safeOffset / safeLimit;
+        int leadingSkip = safeOffset % safeLimit;
+        var pageable = PageRequest.of(page, safeLimit);
+
+        List<Shipment> rows = fetchShipments(status, ownerScopeId, pageable);
+
+        if (leadingSkip == 0) {
+            return rows.stream().map(this::toResponse).toList();
+        }
+        var widePageable = PageRequest.of(0, safeOffset + safeLimit);
+        List<Shipment> wide = fetchShipments(status, ownerScopeId, widePageable);
+        return wide.stream().skip(safeOffset).limit(safeLimit).map(this::toResponse).toList();
+    }
+
+    private List<Shipment> fetchShipments(ShipmentStatus status, Long ownerScopeId,
+                                          org.springframework.data.domain.Pageable pageable) {
+        if (ownerScopeId != null) {
+            return (status == null)
+                    ? shipmentRepository.findByStoreOwnerIdPaged(ownerScopeId, pageable)
+                    : shipmentRepository.findByStoreOwnerIdAndStatusPaged(ownerScopeId, status, pageable);
+        }
+        return (status == null)
+                ? shipmentRepository.findAllPaged(pageable)
+                : shipmentRepository.findByStatusPaged(status, pageable);
     }
 
     private ShipmentResponse toResponse(Shipment shipment) {

@@ -2,6 +2,13 @@
   <div class="page-header">
     <h2>Customers</h2>
     <div class="header-actions">
+      <input
+        type="search"
+        class="search-input"
+        placeholder="Search name, email, phone…"
+        [value]="searchQuery()"
+        (input)="onSearch($any($event.target).value)"
+        aria-label="Search customers" />
       <select
         class="search-input"
         (change)="onFilterChange($any($event.target).value)"
@@ -14,10 +21,16 @@
     </div>
   </div>
 
+  @if (actionError()) {
+    <div class="error-alert" role="alert">{{ actionError() }}</div>
+  }
+
   @if (loading()) {
     <div class="loading" role="status"><span>Loading customers...</span></div>
   } @else if (users().length === 0) {
     <div class="empty-state"><p>No customers found.</p></div>
+  } @else if (filteredUsers().length === 0) {
+    <div class="empty-state"><p>No customers match "{{ searchQuery() }}".</p></div>
   } @else {
     <div class="table-wrap" role="region" aria-label="Customers table" tabindex="0">
       <table>
@@ -29,6 +42,7 @@
             <th>Phone</th>
             <th>Status</th>
             <th>Joined</th>
+            <th>Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -46,6 +60,16 @@
                 }
               </td>
               <td>{{ u.createdAt | date:'mediumDate' }}</td>
+              <td class="actions">
+                <button
+                  type="button"
+                  class="btn-icon danger"
+                  [disabled]="deletingId() === u.id"
+                  (click)="deleteUser(u)"
+                  [attr.aria-label]="'Delete ' + u.firstName + ' ' + u.lastName">
+                  {{ deletingId() === u.id ? 'Deleting…' : 'Delete' }}
+                </button>
+              </td>
             </tr>
           }
         </tbody>
@@ -58,9 +82,9 @@
       class="scroll-sentinel"
       aria-hidden="true">
       @if (hasMore()) {
-        <span class="loading-more">Loading more… ({{ visibleUsers().length }} / {{ users().length }})</span>
+        <span class="loading-more">Loading more… ({{ visibleUsers().length }} / {{ filteredUsers().length }})</span>
       } @else {
-        <span class="loading-more done">All {{ users().length }} customers loaded</span>
+        <span class="loading-more done">All {{ filteredUsers().length }} customers shown</span>
       }
     </div>
   }

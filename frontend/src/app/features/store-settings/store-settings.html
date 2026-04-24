@@ -51,9 +51,28 @@
           </div>
           <div class="card-body">
             <p>{{ store.description || 'No description.' }}</p>
+            @if (isAdmin()) {
+              <p class="card-meta" [title]="store.ownerName + ' (id ' + store.ownerId + ')'">
+                Owner: {{ store.ownerName }}
+              </p>
+            }
           </div>
+          @if (isAdmin()) {
+            <div class="status-row">
+              <label class="status-label" [attr.for]="'status-' + store.id">Status</label>
+              <select
+                [id]="'status-' + store.id"
+                class="status-select"
+                [disabled]="statusUpdatingId() === store.id"
+                (change)="updateStatus(store, $any($event.target).value)">
+                @for (s of statuses; track s) {
+                  <option [value]="s" [selected]="s === store.status">{{ s.replace('_', ' ') }}</option>
+                }
+              </select>
+            </div>
+          }
           <div class="card-footer">
-            <span class="card-date">Created: {{ store.createdAt | date:'mediumDate' }}</span>
+            <span class="card-date">{{ store.createdAt | date:'mediumDate' }}</span>
             <button class="btn-icon" (click)="openEdit(store)" aria-label="Edit {{ store.name }}">Edit</button>
           </div>
         </div>

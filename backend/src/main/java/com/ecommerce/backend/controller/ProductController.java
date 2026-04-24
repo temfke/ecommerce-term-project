@@ -3,6 +3,7 @@ package com.ecommerce.backend.controller;
 import com.ecommerce.backend.dto.ProductRequest;
 import com.ecommerce.backend.dto.ProductResponse;
 import com.ecommerce.backend.entity.User;
+import com.ecommerce.backend.enums.Role;
 import com.ecommerce.backend.service.ProductService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -28,9 +29,13 @@ public class ProductController {
             @RequestParam(required = false, defaultValue = "id") String sortBy,
             @RequestParam(required = false, defaultValue = "desc") String sortDir,
             @RequestParam(required = false, defaultValue = "100") int limit,
-            @RequestParam(required = false, defaultValue = "0") int offset) {
+            @RequestParam(required = false, defaultValue = "0") int offset,
+            @RequestParam(required = false, defaultValue = "false") boolean mineOnly,
+            @AuthenticationPrincipal User currentUser) {
+        Long ownerScopeId = (mineOnly || (currentUser != null && currentUser.getRole() == Role.CORPORATE))
+                ? currentUser.getId() : null;
         return ResponseEntity.ok(productService.filterAndSortProducts(
-                search, categoryId, storeId, sortBy, sortDir, limit, offset));
+                search, categoryId, storeId, sortBy, sortDir, limit, offset, ownerScopeId));
     }
 
     @GetMapping("/{id}")

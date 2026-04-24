@@ -123,6 +123,31 @@ public class ReviewService {
         };
     }
 
+    public List<ReviewResponse> getReviewsForCurrentUserPaged(User currentUser, int limit, int offset) {
+        int safeLimit = Math.min(Math.max(limit, 1), 500);
+        int safeOffset = Math.max(offset, 0);
+        int page = safeOffset / safeLimit;
+        int leadingSkip = safeOffset % safeLimit;
+        var pageable = PageRequest.of(page, safeLimit);
+
+        List<Review> rows = switch (currentUser.getRole()) {
+            case ADMIN -> reviewRepository.findAllPaged(pageable);
+            case CORPORATE -> reviewRepository.findByStoreOwnerIdPaged(currentUser.getId(), pageable);
+            default -> reviewRepository.findByUserIdPaged(currentUser.getId(), pageable);
+        };
+
+        if (leadingSkip == 0) {
+            return mapWithVotes(rows, currentUser);
+        }
+        var widePageable = PageRequest.of(0, safeOffset + safeLimit);
+        List<Review> wide = switch (currentUser.getRole()) {
+            case ADMIN -> reviewRepository.findAllPaged(widePageable);
+            case CORPORATE -> reviewRepository.findByStoreOwnerIdPaged(currentUser.getId(), widePageable);
+            default -> reviewRepository.findByUserIdPaged(currentUser.getId(), widePageable);
+        };
+        return mapWithVotes(wide.stream().skip(safeOffset).limit(safeLimit).toList(), currentUser);
+    }
+
     @Transactional
     public void deleteReview(Long id) {
         if (!reviewRepository.existsById(id)) {

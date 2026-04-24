@@ -8,6 +8,7 @@ import com.ecommerce.backend.exception.ResourceNotFoundException;
 import com.ecommerce.backend.exception.UnauthorizedException;
 import com.ecommerce.backend.repository.*;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -98,6 +99,32 @@ public class OrderService {
             case CORPORATE -> getOrdersForStoreOwner(currentUser.getId());
             default -> getOrdersByUser(currentUser.getId());
         };
+    }
+
+    public List<OrderResponse> getOrdersForCurrentUserPaged(User currentUser, int limit, int offset) {
+        int safeLimit = Math.min(Math.max(limit, 1), 500);
+        int safeOffset = Math.max(offset, 0);
+        int page = safeOffset / safeLimit;
+        int leadingSkip = safeOffset % safeLimit;
+        var pageable = PageRequest.of(page, safeLimit);
+
+        List<Order> rows = switch (currentUser.getRole()) {
+            case ADMIN -> orderRepository.findAllPaged(pageable);
+            case CORPORATE -> orderRepository.findByStoreOwnerIdPaged(currentUser.getId(), pageable);
+            default -> orderRepository.findByUserIdPaged(currentUser.getId(), pageable);
+        };
+
+        if (leadingSkip == 0) {
+            return rows.stream().map(this::toResponse).toList();
+        }
+        // Misaligned offset: take a wider window then slice in-memory.
+        var widePageable = PageRequest.of(0, safeOffset + safeLimit);
+        List<Order> wide = switch (currentUser.getRole()) {
+            case ADMIN -> orderRepository.findAllPaged(widePageable);
+            case CORPORATE -> orderRepository.findByStoreOwnerIdPaged(currentUser.getId(), widePageable);
+            default -> orderRepository.findByUserIdPaged(currentUser.getId(), widePageable);
+        };
+        return wide.stream().skip(safeOffset).limit(safeLimit).map(this::toResponse).toList();
     }
 
     public OrderResponse getOrderById(Long id, User currentUser) {

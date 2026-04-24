@@ -45,7 +45,7 @@ public class ProductService {
 
     public List<ProductResponse> filterAndSortProducts(
             String search, Long categoryId, Long storeId,
-            String sortBy, String sortDir, int limit, int offset) {
+            String sortBy, String sortDir, int limit, int offset, Long ownerScopeId) {
 
         String safeSortBy = ALLOWED_SORT_FIELDS.contains(sortBy) ? sortBy : "id";
         Sort.Direction dir = "asc".equalsIgnoreCase(sortDir)
@@ -58,17 +58,24 @@ public class ProductService {
         String safeSearch = (search != null && !search.isBlank()) ? search : null;
 
         if (leadingSkip == 0) {
-            return productRepository.filterProducts(
-                            safeSearch, categoryId, storeId,
-                            PageRequest.of(page, safeLimit, Sort.by(dir, safeSortBy)))
+            var pageable = PageRequest.of(page, safeLimit, Sort.by(dir, safeSortBy));
+            return runFilter(ownerScopeId, safeSearch, categoryId, storeId, pageable)
                     .stream().map(this::toResponse).toList();
         }
 
         // Misaligned offset/limit: fetch a window starting at the requested offset.
-        return productRepository.filterProducts(
-                        safeSearch, categoryId, storeId,
-                        PageRequest.of(0, safeOffset + safeLimit, Sort.by(dir, safeSortBy)))
+        var widePageable = PageRequest.of(0, safeOffset + safeLimit, Sort.by(dir, safeSortBy));
+        return runFilter(ownerScopeId, safeSearch, categoryId, storeId, widePageable)
                 .stream().skip(safeOffset).limit(safeLimit).map(this::toResponse).toList();
+    }
+
+    private org.springframework.data.domain.Page<Product> runFilter(
+            Long ownerScopeId, String search, Long categoryId,
+            Long storeId, org.springframework.data.domain.Pageable pageable) {
+        if (ownerScopeId != null) {
+            return productRepository.filterProductsForOwner(ownerScopeId, search, categoryId, storeId, pageable);
+        }
+        return productRepository.filterProducts(search, categoryId, storeId, pageable);
     }
 
     public ProductResponse getProductById(Long id) {

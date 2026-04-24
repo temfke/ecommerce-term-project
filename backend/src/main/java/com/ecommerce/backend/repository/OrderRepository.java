@@ -2,6 +2,7 @@ package com.ecommerce.backend.repository;
 
 import com.ecommerce.backend.entity.Order;
 import com.ecommerce.backend.enums.OrderStatus;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
@@ -31,4 +32,13 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
 
     @Query("SELECT o FROM Order o ORDER BY o.createdAt DESC")
     List<Order> findAllOrderedByCreatedAt();
+
+    @Query("SELECT DISTINCT o FROM Order o LEFT JOIN FETCH o.items i LEFT JOIN FETCH i.product LEFT JOIN FETCH o.user LEFT JOIN FETCH o.store ORDER BY o.createdAt DESC")
+    List<Order> findAllPaged(Pageable pageable);
+
+    @Query("SELECT DISTINCT o FROM Order o LEFT JOIN FETCH o.items i LEFT JOIN FETCH i.product LEFT JOIN FETCH o.user LEFT JOIN FETCH o.store WHERE o.store.owner.id = :ownerId ORDER BY o.createdAt DESC")
+    List<Order> findByStoreOwnerIdPaged(Long ownerId, Pageable pageable);
+
+    @Query("SELECT DISTINCT o FROM Order o LEFT JOIN FETCH o.items i LEFT JOIN FETCH i.product LEFT JOIN FETCH o.user LEFT JOIN FETCH o.store WHERE o.user.id = :userId ORDER BY o.createdAt DESC")
+    List<Order> findByUserIdPaged(Long userId, Pageable pageable);
 }

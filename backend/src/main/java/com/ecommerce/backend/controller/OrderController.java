@@ -34,8 +34,11 @@ public class OrderController {
     }
 
     @GetMapping
-    public ResponseEntity<List<OrderResponse>> getOrders(@AuthenticationPrincipal User currentUser) {
-        return ResponseEntity.ok(orderService.getOrdersForCurrentUser(currentUser));
+    public ResponseEntity<List<OrderResponse>> getOrders(
+            @AuthenticationPrincipal User currentUser,
+            @RequestParam(required = false, defaultValue = "200") int limit,
+            @RequestParam(required = false, defaultValue = "0") int offset) {
+        return ResponseEntity.ok(orderService.getOrdersForCurrentUserPaged(currentUser, limit, offset));
     }
 
     @GetMapping("/{id}")

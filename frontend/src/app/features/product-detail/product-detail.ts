@@ -49,7 +49,8 @@ export class ProductDetail implements OnInit {
   readonly currentUserId = computed(() => this.auth.currentUser()?.userId ?? null);
   readonly canReview = computed(() => this.auth.isAuthenticated());
   readonly isAdmin = computed(() => this.auth.userRole() === 'ADMIN');
-  readonly canBuy = computed(() => !this.isAdmin());
+  readonly isCorporate = computed(() => this.auth.userRole() === 'CORPORATE');
+  readonly canBuy = computed(() => !this.isAdmin() && !this.isCorporate());
   readonly inWishlist = computed(() => {
     const p = this.product();
     return p != null && this.wishlist.ids().includes(p.id);

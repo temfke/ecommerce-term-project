@@ -52,8 +52,11 @@ public class ReviewController {
     }
 
     @GetMapping
-    public ResponseEntity<List<ReviewResponse>> getReviews(@AuthenticationPrincipal User currentUser) {
-        return ResponseEntity.ok(reviewService.getReviewsForCurrentUser(currentUser));
+    public ResponseEntity<List<ReviewResponse>> getReviews(
+            @AuthenticationPrincipal User currentUser,
+            @RequestParam(required = false, defaultValue = "200") int limit,
+            @RequestParam(required = false, defaultValue = "0") int offset) {
+        return ResponseEntity.ok(reviewService.getReviewsForCurrentUserPaged(currentUser, limit, offset));
     }
 
     @GetMapping("/store/{storeId}")

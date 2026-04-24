@@ -8,7 +8,8 @@ import { Order, OrderStatus } from '../../core/models/order.model';
 import { Address } from '../../core/models/address.model';
 import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll.directive';
 
-const PAGE_SIZE = 200;
+const INITIAL_PAGE_SIZE = 200;
+const NEXT_PAGE_SIZE = 100;
 
 @Component({
   selector: 'app-orders',
@@ -26,11 +27,12 @@ export class Orders implements OnInit {
 
   readonly orders = signal<Order[]>([]);
   readonly loading = signal(true);
+  readonly loadingMore = signal(false);
+  readonly endReached = signal(false);
   readonly view = signal<'cart' | 'orders'>('orders');
-  readonly displayLimit = signal(PAGE_SIZE);
 
-  readonly visibleOrders = computed(() => this.orders().slice(0, this.displayLimit()));
-  readonly hasMore = computed(() => this.displayLimit() < this.orders().length);
+  readonly visibleOrders = computed(() => this.orders());
+  readonly hasMore = computed(() => !this.endReached());
 
   readonly isAdmin = computed(() => this.auth.userRole() === 'ADMIN');
   readonly isCorporate = computed(() => this.auth.userRole() === 'CORPORATE');
@@ -111,17 +113,30 @@ export class Orders implements OnInit {
       return;
     }
     this.loading.set(true);
-    this.displayLimit.set(PAGE_SIZE);
-    const obs = this.isIndividual() ? this.api.getMyOrders() : this.api.getOrders();
-    obs.subscribe({
-      next: (data) => { this.orders.set(data); this.loading.set(false); },
-      error: () => this.loading.set(false),
+    this.endReached.set(false);
+    this.orders.set([]);
+    this.api.getOrders({ limit: INITIAL_PAGE_SIZE, offset: 0 }).subscribe({
+      next: (data) => {
+        this.orders.set(data);
+        if (data.length < INITIAL_PAGE_SIZE) this.endReached.set(true);
+        this.loading.set(false);
+      },
+      error: () => { this.loading.set(false); this.endReached.set(true); },
     });
   }
 
   loadMoreOrders() {
-    if (!this.hasMore()) return;
-    this.displayLimit.update(n => Math.min(n + PAGE_SIZE, this.orders().length));
+    if (this.loadingMore() || this.endReached() || this.loading()) return;
+    this.loadingMore.set(true);
+    const offset = this.orders().length;
+    this.api.getOrders({ limit: NEXT_PAGE_SIZE, offset }).subscribe({
+      next: (data) => {
+        this.orders.update(curr => [...curr, ...data]);
+        if (data.length < NEXT_PAGE_SIZE) this.endReached.set(true);
+        this.loadingMore.set(false);
+      },
+      error: () => { this.loadingMore.set(false); this.endReached.set(true); },
+    });
   }
 
   updateStatus(id: number, status: string) {

@@ -31,4 +31,17 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
             @Param("categoryId") Long categoryId,
             @Param("storeId") Long storeId,
             Pageable pageable);
+
+    @Query("SELECT p FROM Product p " +
+           "WHERE p.active = true " +
+           "AND p.store.owner.id = :ownerId " +
+           "AND (:search IS NULL OR LOWER(p.name) LIKE LOWER(CONCAT('%', :search, '%'))) " +
+           "AND (:categoryId IS NULL OR p.category.id = :categoryId) " +
+           "AND (:storeId IS NULL OR p.store.id = :storeId)")
+    Page<Product> filterProductsForOwner(
+            @Param("ownerId") Long ownerId,
+            @Param("search") String search,
+            @Param("categoryId") Long categoryId,
+            @Param("storeId") Long storeId,
+            Pageable pageable);
 }

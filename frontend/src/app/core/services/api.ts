@@ -43,7 +43,13 @@ export class Api {
 
   // Orders
   getMyOrders() { return this.http.get<Order[]>(`${this.API}/orders/my`); }
-  getOrders() { return this.http.get<Order[]>(`${this.API}/orders`); }
+  getOrders(opts: { limit?: number; offset?: number } = {}) {
+    const parts: string[] = [];
+    if (opts.limit != null) parts.push(`limit=${opts.limit}`);
+    if (opts.offset != null) parts.push(`offset=${opts.offset}`);
+    const qs = parts.length ? `?${parts.join('&')}` : '';
+    return this.http.get<Order[]>(`${this.API}/orders${qs}`);
+  }
   getOrdersByStore(storeId: number) { return this.http.get<Order[]>(`${this.API}/orders/store/${storeId}`); }
   getOrder(id: number) { return this.http.get<Order>(`${this.API}/orders/${id}`); }
   createOrder(req: OrderRequest) { return this.http.post<Order>(`${this.API}/orders`, req); }
@@ -78,7 +84,13 @@ export class Api {
     return this.http.get<Review[]>(`${this.API}/reviews/product/${productId}/mine`);
   }
   getMyReviews() { return this.http.get<Review[]>(`${this.API}/reviews/my`); }
-  getReviews() { return this.http.get<Review[]>(`${this.API}/reviews`); }
+  getReviews(opts: { limit?: number; offset?: number } = {}) {
+    const parts: string[] = [];
+    if (opts.limit != null) parts.push(`limit=${opts.limit}`);
+    if (opts.offset != null) parts.push(`offset=${opts.offset}`);
+    const qs = parts.length ? `?${parts.join('&')}` : '';
+    return this.http.get<Review[]>(`${this.API}/reviews${qs}`);
+  }
   getReviewsByStore(storeId: number) { return this.http.get<Review[]>(`${this.API}/reviews/store/${storeId}`); }
   createReview(req: ReviewRequest) { return this.http.post<Review>(`${this.API}/reviews`, req); }
   voteOnReview(id: number, type: ReviewVoteType) {
@@ -87,9 +99,13 @@ export class Api {
   deleteReview(id: number) { return this.http.delete<void>(`${this.API}/reviews/${id}`); }
 
   // Shipments
-  getShipments(status?: string) {
-    const params = status ? `?status=${status}` : '';
-    return this.http.get<Shipment[]>(`${this.API}/shipments${params}`);
+  getShipments(status?: string, opts: { limit?: number; offset?: number } = {}) {
+    const parts: string[] = [];
+    if (status) parts.push(`status=${status}`);
+    if (opts.limit != null) parts.push(`limit=${opts.limit}`);
+    if (opts.offset != null) parts.push(`offset=${opts.offset}`);
+    const qs = parts.length ? `?${parts.join('&')}` : '';
+    return this.http.get<Shipment[]>(`${this.API}/shipments${qs}`);
   }
   getShipmentByOrder(orderId: number) { return this.http.get<Shipment>(`${this.API}/shipments/order/${orderId}`); }
   createShipment(body: Record<string, unknown>) { return this.http.post<Shipment>(`${this.API}/shipments`, body); }

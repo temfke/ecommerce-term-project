@@ -84,12 +84,14 @@
     </div>
     <div
       appInfiniteScroll
-      [disabled]="!hasMore()"
+      [disabled]="!hasMore() || loadingMore()"
       (endReached)="loadMore()"
       class="scroll-sentinel"
       aria-hidden="true">
-      @if (hasMore()) {
-        <span class="loading-more">Loading more… ({{ visibleReviews().length }} / {{ reviews().length }})</span>
+      @if (loadingMore()) {
+        <span class="loading-more">Loading more… ({{ reviews().length }} so far)</span>
+      } @else if (hasMore()) {
+        <span class="loading-more">Scroll for more ({{ reviews().length }} loaded)</span>
       } @else if (reviews().length > 0) {
         <span class="loading-more done">All {{ reviews().length }} reviews loaded</span>
       }

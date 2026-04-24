@@ -6,7 +6,8 @@ import { Auth } from '../../core/services/auth';
 import { Review } from '../../core/models/review.model';
 import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll.directive';
 
-const PAGE_SIZE = 200;
+const INITIAL_PAGE_SIZE = 200;
+const NEXT_PAGE_SIZE = 100;
 
 @Component({
   selector: 'app-reviews',
@@ -22,15 +23,16 @@ export class Reviews implements OnInit {
 
   readonly reviews = signal<Review[]>([]);
   readonly loading = signal(true);
+  readonly loadingMore = signal(false);
+  readonly endReached = signal(false);
   readonly showForm = signal(false);
   readonly error = signal('');
-  readonly displayLimit = signal(PAGE_SIZE);
   readonly expandedIds = signal<ReadonlySet<number>>(new Set());
 
   readonly CLAMP_THRESHOLD = 280;
 
-  readonly visibleReviews = computed(() => this.reviews().slice(0, this.displayLimit()));
-  readonly hasMore = computed(() => this.displayLimit() < this.reviews().length);
+  readonly visibleReviews = computed(() => this.reviews());
+  readonly hasMore = computed(() => !this.endReached());
 
   readonly isIndividual = computed(() => this.auth.userRole() === 'INDIVIDUAL');
   readonly isAdmin = computed(() => this.auth.userRole() === 'ADMIN');
@@ -47,17 +49,41 @@ export class Reviews implements OnInit {
 
   loadReviews() {
     this.loading.set(true);
-    this.displayLimit.set(PAGE_SIZE);
-    const obs = this.isIndividual() ? this.api.getMyReviews() : this.api.getReviews();
-    obs.subscribe({
-      next: (data) => { this.reviews.set(data); this.loading.set(false); },
-      error: () => this.loading.set(false),
+    this.endReached.set(false);
+    this.reviews.set([]);
+    if (this.isIndividual()) {
+      this.api.getMyReviews().subscribe({
+        next: (data) => {
+          this.reviews.set(data);
+          this.endReached.set(true);
+          this.loading.set(false);
+        },
+        error: () => { this.loading.set(false); this.endReached.set(true); },
+      });
+      return;
+    }
+    this.api.getReviews({ limit: INITIAL_PAGE_SIZE, offset: 0 }).subscribe({
+      next: (data) => {
+        this.reviews.set(data);
+        if (data.length < INITIAL_PAGE_SIZE) this.endReached.set(true);
+        this.loading.set(false);
+      },
+      error: () => { this.loading.set(false); this.endReached.set(true); },
     });
   }
 
   loadMore() {
-    if (!this.hasMore()) return;
-    this.displayLimit.update(n => Math.min(n + PAGE_SIZE, this.reviews().length));
+    if (this.loadingMore() || this.endReached() || this.loading() || this.isIndividual()) return;
+    this.loadingMore.set(true);
+    const offset = this.reviews().length;
+    this.api.getReviews({ limit: NEXT_PAGE_SIZE, offset }).subscribe({
+      next: (data) => {
+        this.reviews.update(curr => [...curr, ...data]);
+        if (data.length < NEXT_PAGE_SIZE) this.endReached.set(true);
+        this.loadingMore.set(false);
+      },
+      error: () => { this.loadingMore.set(false); this.endReached.set(true); },
+    });
   }
 
   openCreate() {
