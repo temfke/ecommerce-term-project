@@ -73,11 +73,6 @@ export const routes: Routes = [
         loadComponent: () => import('./features/store-settings/store-settings').then(m => m.StoreSettings)
       },
       {
-        path: 'user-management',
-        canActivate: [roleGuard('ADMIN')],
-        loadComponent: () => import('./features/user-management/user-management').then(m => m.UserManagement)
-      },
-      {
         path: 'profile',
         loadComponent: () => import('./features/profile/profile').then(m => m.Profile)
       },

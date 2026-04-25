@@ -51,7 +51,6 @@ export class Sidebar {
         { label: 'Store Settings', route: '/store-settings', icon: '🏪', roles: ['ADMIN', 'CORPORATE'] },
         { label: 'Shipments', route: '/shipments', icon: '🚚', roles: ['ADMIN', 'CORPORATE'] },
         { label: 'Reviews', route: '/reviews', icon: '⭐', roles: ['ADMIN', 'CORPORATE'] },
-        { label: 'User Management', route: '/user-management', icon: '🔧', roles: ['ADMIN'] },
       ],
     },
   ];

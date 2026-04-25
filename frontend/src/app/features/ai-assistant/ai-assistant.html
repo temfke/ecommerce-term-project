@@ -1,0 +1,134 @@
+<div class="chat-page">
+  <header class="chat-header">
+    <div class="title-row">
+      <span class="status-dot" aria-hidden="true"></span>
+      <h2>AI Data Assistant</h2>
+    </div>
+    <p class="subtitle">
+      Ask anything about your {{ scopeLabel() }} data — no SQL knowledge required.
+    </p>
+  </header>
+
+  <div class="chat-scroll" #scrollEl>
+    @if (!hasMessages()) {
+      <div class="welcome">
+        <div class="welcome-card">
+          <div class="welcome-avatar" aria-hidden="true">AI</div>
+          <div class="welcome-body">
+            <p class="welcome-greet">Hi {{ userName() }} — I'm your AI data assistant.</p>
+            <p class="welcome-help">
+              I can analyze your data and create instant insights. Try one of the suggestions below or type your own question.
+            </p>
+          </div>
+        </div>
+
+        <div class="suggestions">
+          <p class="suggestions-label">Suggested questions</p>
+          <div class="suggestion-grid">
+            @for (s of suggestions; track s) {
+              <button type="button" class="suggestion-chip" (click)="useSuggestion(s)">
+                {{ s }}
+              </button>
+            }
+          </div>
+        </div>
+      </div>
+    }
+
+    @for (m of messages(); track m.id) {
+      <div class="msg" [class.from-user]="m.role === 'user'" [class.from-ai]="m.role === 'assistant'">
+        <div class="avatar" [attr.aria-hidden]="true">{{ m.role === 'user' ? 'YOU' : 'AI' }}</div>
+
+        @if (m.role === 'user') {
+          <div class="bubble bubble-user">{{ m.text }}</div>
+        } @else if (m.payload?.status === 'BLOCKED') {
+          <div class="bubble bubble-blocked">
+            <p class="bubble-narrative">{{ m.text }}</p>
+            <div class="guardrail-card">
+              <div class="guardrail-head">
+                <span class="warn-icon" aria-hidden="true">!</span>
+                <span class="guardrail-title">Guardrail Agent — BLOCKED</span>
+              </div>
+              <dl class="guardrail-grid">
+                <dt>Detection</dt><dd>{{ m.payload?.guardrail?.type }}</dd>
+                <dt>Trigger</dt><dd>{{ m.payload?.guardrail?.trigger }}</dd>
+                <dt>Action</dt><dd>{{ m.payload?.guardrail?.action }}</dd>
+              </dl>
+            </div>
+          </div>
+        } @else if (m.payload?.status === 'OUT_OF_SCOPE') {
+          <div class="bubble bubble-blocked">
+            <p class="bubble-narrative">{{ m.text }}</p>
+            <div class="guardrail-card scope">
+              <div class="guardrail-head">
+                <span class="warn-icon scope-icon" aria-hidden="true">?</span>
+                <span class="guardrail-title">Out of scope</span>
+              </div>
+              <dl class="guardrail-grid">
+                <dt>Trigger</dt><dd>{{ m.payload?.guardrail?.trigger }}</dd>
+                <dt>Action</dt><dd>{{ m.payload?.guardrail?.action }}</dd>
+              </dl>
+            </div>
+          </div>
+        } @else {
+          <div class="bubble bubble-ai">
+            <p class="bubble-narrative">{{ m.text }}</p>
+
+            @if (m.payload?.rows?.length) {
+              <div class="bars">
+                @for (r of m.payload!.rows!; track r.label) {
+                  <div class="bar-row">
+                    <span class="bar-label" [title]="r.label">{{ r.label }}</span>
+                    <span class="bar-track">
+                      <span class="bar-fill" [style.width.%]="barWidth(r.value, m.payload?.rows)"></span>
+                    </span>
+                    <span class="bar-value">{{ r.value | number }}</span>
+                  </div>
+                }
+              </div>
+            }
+
+            @if (m.payload?.sqlPreview) {
+              <details class="sql-preview">
+                <summary>View generated SQL</summary>
+                <pre><code>{{ m.payload?.sqlPreview }}</code></pre>
+              </details>
+            }
+          </div>
+        }
+      </div>
+    }
+
+    @if (loading()) {
+      <div class="msg from-ai">
+        <div class="avatar" aria-hidden="true">AI</div>
+        <div class="bubble bubble-ai typing">
+          <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+        </div>
+      </div>
+    }
+  </div>
+
+  @if (errorText()) {
+    <div class="error-alert" role="alert">{{ errorText() }}</div>
+  }
+
+  <form class="composer" (submit)="onSubmit($event)">
+    <input
+      type="text"
+      class="composer-input"
+      placeholder="Ask about your sales, products, customers…"
+      maxlength="1000"
+      [ngModel]="draft()"
+      (ngModelChange)="draft.set($event)"
+      [disabled]="loading()"
+      name="question"
+      aria-label="Question for AI assistant" />
+    <button
+      type="submit"
+      class="composer-send"
+      [disabled]="loading() || !draft().trim()">
+      Send
+    </button>
+  </form>
+</div>

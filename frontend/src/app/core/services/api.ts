@@ -8,6 +8,7 @@ import { Shipment } from '../models/shipment.model';
 import { User, AuthResponse } from '../models/user.model';
 import { Address, AddressRequest } from '../models/address.model';
 import { DashboardStats, Category } from '../models/dashboard.model';
+import { ChatRequest, ChatResponse } from '../models/chat.model';
 
 @Injectable({ providedIn: 'root' })
 export class Api {
@@ -143,4 +144,7 @@ export class Api {
   getCorporateDashboard(storeId: number) {
     return this.http.get<DashboardStats>(`${this.API}/analytics/corporate/dashboard/${storeId}`);
   }
+
+  // Chat / AI Assistant
+  askChat(req: ChatRequest) { return this.http.post<ChatResponse>(`${this.API}/chat/ask`, req); }
 }
