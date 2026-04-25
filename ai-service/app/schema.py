@@ -3,7 +3,7 @@ from pydantic import BaseModel, Field
 
 Role = Literal["ADMIN", "CORPORATE", "INDIVIDUAL"]
 Status = Literal["ANSWER", "GREETING", "OUT_OF_SCOPE", "BLOCKED"]
-Classification = Literal["greeting", "in_scope", "out_of_scope", "prompt_injection"]
+Classification = Literal["greeting", "in_scope", "out_of_scope", "prompt_injection", "cross_tenant"]
 
 
 class ChatTurn(BaseModel):

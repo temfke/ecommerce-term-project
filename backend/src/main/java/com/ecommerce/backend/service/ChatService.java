@@ -44,7 +44,7 @@ public class ChatService {
             try {
                 return aiServiceClient.ask(request, currentUser, resolveStoreScope(currentUser));
             } catch (Exception e) {
-                log.warn("AI service call failed, falling back to local stub: {}", e.getMessage());
+                log.warn("AI service call failed, falling back to local stub", e);
                 // fall through to local keyword stub
             }
         }

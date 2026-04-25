@@ -23,44 +23,34 @@ the schema below. Strict rules:
 3. Single statement only. No semicolons except the final one. No comments.
 4. Avoid SELECT * — list the columns you actually need.
 5. Never query password_hash, refresh tokens, email_verification_*, or any auth columns.
-6. Use placeholder ":scoped_user_id" or ":scoped_store_id" wherever you need to
-   restrict results to the current user / their store. The execution layer
-   will substitute the real values from the authenticated session.
+6. Do NOT add any ownership/scope filter (no `WHERE user_id = ...`, no
+   `WHERE store_id = ...`). A downstream sanitizer adds the role-scoped
+   WHERE clause from the authenticated session automatically. Just write
+   the analytical SQL the question asks for.
 7. LIMIT to at most 100 rows for list queries.
 
 Schema:
 """
 
 
-SCOPE_HINT = {
-    "ADMIN": "The current user is an ADMIN — no ownership restriction needed.",
-    "CORPORATE": (
-        "The current user is a CORPORATE owner. Restrict every query to their "
-        "store with `WHERE store_id = :scoped_store_id` (or join through stores "
-        "and filter on stores.owner_id = :scoped_user_id)."
-    ),
-    "INDIVIDUAL": (
-        "The current user is an INDIVIDUAL customer. Restrict every query to "
-        "their data with `WHERE user_id = :scoped_user_id`."
-    ),
-}
+# The SQL agent does not see role context anymore — scope is the sanitizer's job.
+SCOPE_HINT = {"ADMIN": "", "CORPORATE": "", "INDIVIDUAL": ""}
 
 
 def generate_sql_stub(question: str, role: Role) -> str:
-    """Deterministic stub used when no LLM is configured."""
+    """Deterministic stub used when no LLM is configured.
+
+    Note: no scope clauses here on purpose — the sanitizer always re-injects
+    them based on the authenticated session, so adding them here would just
+    produce duplicate (but correct) WHERE conditions in the preview.
+    """
     lower = question.lower()
-    scope_clause = ""
-    if role == "CORPORATE":
-        scope_clause = "AND o.store_id = :scoped_store_id\n"
-    elif role == "INDIVIDUAL":
-        scope_clause = "AND o.user_id = :scoped_user_id\n"
 
     if any(k in lower for k in ("trend", "revenue", "weekly", "monthly", "over time")):
         return (
             "SELECT DATE(o.created_at) AS day, SUM(oi.unit_price * oi.quantity) AS revenue\n"
             "FROM orders o JOIN order_items oi ON oi.order_id = o.id\n"
             "WHERE o.created_at >= NOW() - INTERVAL 7 DAY\n"
-            f"{scope_clause}"
             "GROUP BY day ORDER BY day;"
         )
 
@@ -69,7 +59,6 @@ def generate_sql_stub(question: str, role: Role) -> str:
         "FROM order_items oi JOIN products p ON p.id = oi.product_id\n"
         "JOIN orders o ON o.id = oi.order_id\n"
         "WHERE MONTH(o.created_at) = MONTH(NOW())\n"
-        f"{scope_clause}"
         "GROUP BY p.id ORDER BY units DESC LIMIT 5;"
     )
 

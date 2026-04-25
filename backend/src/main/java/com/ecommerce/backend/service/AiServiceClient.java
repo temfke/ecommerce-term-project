@@ -22,6 +22,7 @@ import java.util.List;
 public class AiServiceClient {
 
     private final HttpClient http = HttpClient.newBuilder()
+            .version(HttpClient.Version.HTTP_1_1)
             .connectTimeout(Duration.ofSeconds(5))
             .build();
     private final ObjectMapper mapper = new ObjectMapper();
@@ -60,7 +61,7 @@ public class AiServiceClient {
 
         HttpResponse<String> response = http.send(builder.build(), HttpResponse.BodyHandlers.ofString());
         if (response.statusCode() / 100 != 2) {
-            throw new IllegalStateException("AI service returned HTTP " + response.statusCode());
+            throw new IllegalStateException("AI service returned HTTP " + response.statusCode() + ": " + response.body());
         }
         return mapper.readValue(response.body(), AiChatResponseEnvelope.class).toChatResponse();
     }
