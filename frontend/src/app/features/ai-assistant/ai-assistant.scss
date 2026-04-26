@@ -307,6 +307,62 @@
   }
 }
 
+.data-table-wrap {
+  margin-top: 12px;
+  max-height: 320px;
+  overflow: auto;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(0, 0, 0, 0.25);
+
+  &::-webkit-scrollbar { width: 8px; height: 8px; }
+  &::-webkit-scrollbar-track { background: transparent; }
+  &::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 4px;
+  }
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+
+  thead {
+    position: sticky;
+    top: 0;
+    background: rgba(20, 20, 28, 0.95);
+    backdrop-filter: blur(4px);
+  }
+
+  th {
+    padding: 8px 12px;
+    text-align: left;
+    color: #9b9ba8;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.7rem;
+    letter-spacing: 0.5px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    white-space: nowrap;
+  }
+
+  td {
+    padding: 8px 12px;
+    color: #d8d8e0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    white-space: nowrap;
+  }
+
+  tbody tr:hover {
+    background: rgba(99, 102, 241, 0.05);
+  }
+
+  tbody tr:last-child td {
+    border-bottom: none;
+  }
+}
+
 .sql-preview {
   margin-top: 12px;
   border-radius: 8px;

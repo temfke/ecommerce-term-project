@@ -12,12 +12,18 @@ export interface ChatGuardrail {
   action: string;
 }
 
+export interface ChatTable {
+  columns: string[];
+  rows: (string | number | boolean | null)[][];
+}
+
 export interface ChatResponse {
   status: ChatStatus;
   narrative: string;
   sqlPreview?: string | null;
   rows?: ChatDataRow[] | null;
   chartType?: ChartType | null;
+  table?: ChatTable | null;
   guardrail?: ChatGuardrail | null;
 }
 

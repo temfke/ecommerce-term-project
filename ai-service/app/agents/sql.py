@@ -48,11 +48,36 @@ def generate_sql_stub(question: str, role: Role) -> str:
 
     if any(k in lower for k in ("trend", "revenue", "weekly", "monthly", "over time")):
         return (
-            "SELECT DATE(o.created_at) AS day, SUM(oi.unit_price * oi.quantity) AS revenue\n"
+            "SELECT DATE(o.created_at) AS day, SUM(oi.price * oi.quantity) AS revenue\n"
             "FROM orders o JOIN order_items oi ON oi.order_id = o.id\n"
-            "WHERE o.created_at >= NOW() - INTERVAL 7 DAY\n"
+            "WHERE o.created_at >= NOW() - INTERVAL 30 DAY\n"
             "GROUP BY day ORDER BY day;"
         )
+
+    if any(k in lower for k in ("recent order", "my order", "latest order", "last order", "order history")):
+        return (
+            "SELECT o.id, o.status, o.grand_total, o.created_at\n"
+            "FROM orders o\n"
+            "ORDER BY o.created_at DESC\n"
+            "LIMIT 20;"
+        )
+
+    if any(k in lower for k in ("review", "rating", "star")):
+        return (
+            "SELECT p.name, r.star_rating, r.review_body, r.created_at\n"
+            "FROM reviews r JOIN products p ON p.id = r.product_id\n"
+            "ORDER BY r.created_at DESC LIMIT 20;"
+        )
+
+    if "shipment" in lower or "tracking" in lower or "delivery" in lower:
+        return (
+            "SELECT s.tracking_id, s.carrier, s.status, s.estimated_delivery\n"
+            "FROM shipments s JOIN orders o ON o.id = s.order_id\n"
+            "ORDER BY s.created_at DESC LIMIT 20;"
+        )
+
+    if "count" in lower:
+        return "SELECT COUNT(*) AS total FROM orders;"
 
     return (
         "SELECT p.name, SUM(oi.quantity) AS units\n"

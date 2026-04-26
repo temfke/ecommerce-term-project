@@ -95,6 +95,7 @@ public class AiServiceClient {
         @JsonProperty("sql_preview") private String sqlPreview;
         private List<AiDataRow> rows;
         @JsonProperty("chart_type") private String chartType;
+        private AiTable table;
         private AiGuardrail guardrail;
 
         public ChatResponse toChatResponse() {
@@ -106,6 +107,10 @@ public class AiServiceClient {
                             .map(r -> ChatResponse.DataRow.builder().label(r.label).value(r.value).build())
                             .toList())
                     .chartType(chartType == null ? null : ChatResponse.ChartType.valueOf(chartType))
+                    .table(table == null ? null : ChatResponse.TableData.builder()
+                            .columns(table.columns)
+                            .rows(table.rows)
+                            .build())
                     .guardrail(guardrail == null ? null : ChatResponse.Guardrail.builder()
                             .type(guardrail.type)
                             .trigger(guardrail.trigger)
@@ -120,6 +125,13 @@ public class AiServiceClient {
     public static class AiDataRow {
         private String label;
         private Double value;
+    }
+
+    @Data
+    @NoArgsConstructor
+    public static class AiTable {
+        private List<String> columns;
+        private List<List<Object>> rows;
     }
 
     @Data

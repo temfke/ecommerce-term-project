@@ -88,6 +88,29 @@
               </div>
             }
 
+            @if (m.payload?.table?.rows?.length) {
+              <div class="data-table-wrap">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      @for (c of m.payload!.table!.columns; track c) {
+                        <th>{{ c }}</th>
+                      }
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (row of m.payload!.table!.rows; track $index) {
+                      <tr>
+                        @for (cell of row; track $index) {
+                          <td>{{ cell ?? '—' }}</td>
+                        }
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            }
+
             @if (m.payload?.sqlPreview) {
               <details class="sql-preview">
                 <summary>View generated SQL</summary>

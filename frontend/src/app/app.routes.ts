@@ -73,6 +73,11 @@ export const routes: Routes = [
         loadComponent: () => import('./features/store-settings/store-settings').then(m => m.StoreSettings)
       },
       {
+        path: 'chat-audit',
+        canActivate: [roleGuard('ADMIN')],
+        loadComponent: () => import('./features/chat-audit/chat-audit').then(m => m.ChatAuditPage)
+      },
+      {
         path: 'profile',
         loadComponent: () => import('./features/profile/profile').then(m => m.Profile)
       },

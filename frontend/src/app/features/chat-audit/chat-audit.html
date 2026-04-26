@@ -1,0 +1,93 @@
+<div class="page">
+  <div class="page-header">
+    <div>
+      <h2>Chat Audit Log</h2>
+      <p class="subtitle">Every prompt the AI assistant has handled, with the verdict and any guardrail trigger.</p>
+    </div>
+    <div class="header-actions">
+      <select
+        class="search-input"
+        (change)="onFilterChange($any($event.target).value)"
+        aria-label="Filter by status">
+        <option value="">All statuses</option>
+        <option value="ANSWER">Answered</option>
+        <option value="BLOCKED">Blocked</option>
+        <option value="OUT_OF_SCOPE">Out of scope</option>
+        <option value="GREETING">Greeting</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="kpi-row">
+    <div class="kpi"><span class="kpi-label">Total</span><span class="kpi-value">{{ summary().total | number }}</span></div>
+    <div class="kpi"><span class="kpi-label">Answered</span><span class="kpi-value ok">{{ summary().answered | number }}</span></div>
+    <div class="kpi"><span class="kpi-label">Blocked</span><span class="kpi-value bad">{{ summary().blocked | number }}</span></div>
+    <div class="kpi"><span class="kpi-label">Rate-limited</span><span class="kpi-value warn">{{ summary().rateLimited | number }}</span></div>
+  </div>
+
+  @if (loading() && entries().length === 0) {
+    <div class="loading" role="status"><span>Loading audit log…</span></div>
+  } @else if (entries().length === 0) {
+    <div class="empty-state"><p>No chat audit entries yet.</p></div>
+  } @else {
+    <div class="table-wrap" role="region" aria-label="Chat audit table" tabindex="0">
+      <table>
+        <thead>
+          <tr>
+            <th>When</th>
+            <th>User</th>
+            <th>Role</th>
+            <th>Question</th>
+            <th>Status</th>
+            <th>Guardrail</th>
+            <th>Rows</th>
+            <th>ms</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (e of entries(); track e.id) {
+            <tr (click)="toggleExpanded(e.id)" class="audit-row" [class.expanded]="expandedId() === e.id">
+              <td class="ts">{{ e.createdAt | date:'short' }}</td>
+              <td class="user">{{ e.userEmail ?? '#' + e.userId }}</td>
+              <td><span class="role-badge" [class]="e.role.toLowerCase()">{{ e.role }}</span></td>
+              <td class="question" [title]="e.question">{{ e.question }}</td>
+              <td>
+                <span class="status-badge" [class]="e.status.toLowerCase()">
+                  {{ e.rateLimited ? 'RATE LIMITED' : e.status }}
+                </span>
+              </td>
+              <td class="trigger" [title]="e.guardrailTrigger ?? ''">
+                @if (e.blockedBy) {
+                  <span class="block-type">{{ e.blockedBy }}</span>
+                } @else {
+                  <span class="dim">—</span>
+                }
+              </td>
+              <td class="num">{{ e.rowCount ?? '—' }}</td>
+              <td class="num">{{ e.executionMs ?? '—' }}</td>
+            </tr>
+            @if (expandedId() === e.id && e.sqlPreview) {
+              <tr class="sql-row">
+                <td colspan="8">
+                  <pre><code>{{ e.sqlPreview }}</code></pre>
+                </td>
+              </tr>
+            }
+          }
+        </tbody>
+      </table>
+    </div>
+    <div
+      appInfiniteScroll
+      [disabled]="!hasMore()"
+      (endReached)="loadMore()"
+      class="scroll-sentinel"
+      aria-hidden="true">
+      @if (hasMore()) {
+        <span class="loading-more">Loading more…</span>
+      } @else {
+        <span class="loading-more done">All {{ entries().length }} entries shown</span>
+      }
+    </div>
+  }
+</div>

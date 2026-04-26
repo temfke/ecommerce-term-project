@@ -9,6 +9,7 @@ import { User, AuthResponse } from '../models/user.model';
 import { Address, AddressRequest } from '../models/address.model';
 import { DashboardStats, Category } from '../models/dashboard.model';
 import { ChatRequest, ChatResponse } from '../models/chat.model';
+import { ChatAudit } from '../models/chat-audit.model';
 
 @Injectable({ providedIn: 'root' })
 export class Api {
@@ -147,4 +148,15 @@ export class Api {
 
   // Chat / AI Assistant
   askChat(req: ChatRequest) { return this.http.post<ChatResponse>(`${this.API}/chat/ask`, req); }
+
+  // Chat audit (admin)
+  getChatAudit(opts: { status?: string; userId?: number; limit?: number; offset?: number } = {}) {
+    const parts: string[] = [];
+    if (opts.status) parts.push(`status=${opts.status}`);
+    if (opts.userId != null) parts.push(`userId=${opts.userId}`);
+    if (opts.limit != null) parts.push(`limit=${opts.limit}`);
+    if (opts.offset != null) parts.push(`offset=${opts.offset}`);
+    const qs = parts.length ? `?${parts.join('&')}` : '';
+    return this.http.get<ChatAudit[]>(`${this.API}/admin/chat-audit${qs}`);
+  }
 }

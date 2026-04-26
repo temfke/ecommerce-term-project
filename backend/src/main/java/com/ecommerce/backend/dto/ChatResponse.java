@@ -22,8 +22,18 @@ public class ChatResponse {
     private String sqlPreview;
     private List<DataRow> rows;
     private ChartType chartType;
+    private TableData table;
 
     private Guardrail guardrail;
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class TableData {
+        private List<String> columns;
+        private List<List<Object>> rows;
+    }
 
     @Data
     @Builder

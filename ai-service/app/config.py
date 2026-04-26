@@ -18,5 +18,12 @@ class Settings:
 
     INTERNAL_API_KEY: str = os.getenv("INTERNAL_API_KEY", "")
 
+    DB_HOST: str = os.getenv("DB_HOST", "127.0.0.1")
+    DB_PORT: int = int(os.getenv("DB_PORT", "3306"))
+    DB_NAME: str = os.getenv("DB_NAME", "ecommerce_db")
+    DB_USER: str = os.getenv("DB_USER", "chatbot_ro")
+    DB_PASSWORD: str = os.getenv("DB_PASSWORD", "")
+    DB_QUERY_TIMEOUT_SECONDS: int = int(os.getenv("DB_QUERY_TIMEOUT_SECONDS", "10"))
+
 
 settings = Settings()
