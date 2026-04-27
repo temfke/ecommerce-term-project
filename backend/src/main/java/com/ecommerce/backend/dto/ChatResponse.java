@@ -14,10 +14,14 @@ import java.util.List;
 public class ChatResponse {
 
     public enum Status { ANSWER, GREETING, OUT_OF_SCOPE, BLOCKED }
-    public enum ChartType { BAR, LINE, NONE }
+    public enum ChartType { BAR, LINE, PIE, NONE }
 
     private Status status;
     private String narrative;
+
+    private String title;
+    private List<String> bullets;
+    private String insight;
 
     private String sqlPreview;
     private List<DataRow> rows;

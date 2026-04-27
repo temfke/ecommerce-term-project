@@ -9,6 +9,8 @@ from typing import Optional, TypedDict
 from langgraph.graph import StateGraph, START, END
 
 from .agents import guardrails, sql as sql_agent
+from .agents.analysis import summarize as summarize_with_analyst
+from .analyzer import analyze
 from .executor import ExecutionResult, execute as execute_sql
 from .llm import get_chat_model
 from .sanitizer import sanitize
@@ -23,6 +25,7 @@ class GraphState(TypedDict, total=False):
     user_id: int
     store_owner_id: Optional[int]
     first_name: Optional[str]
+    history: list
     classification: Classification
     trigger: str
     sql_preview: str
@@ -75,6 +78,17 @@ def node_blocked(state: GraphState) -> GraphState:
     return state
 
 
+def node_sql_injection(state: GraphState) -> GraphState:
+    state["response"] = _guardrail_response(
+        "That message looks like an attempt to run raw SQL. The chatbot only "
+        "executes safe, system-generated read-only queries — even for admins.",
+        type_="SQL Injection Attempt",
+        trigger=f'"{state["trigger"]}"',
+        action="SQL generation halted",
+    )
+    return state
+
+
 def node_cross_tenant(state: GraphState) -> GraphState:
     state["response"] = ChatResponse(
         status="BLOCKED",
@@ -108,7 +122,9 @@ def node_out_of_scope(state: GraphState) -> GraphState:
 
 
 def node_sql(state: GraphState) -> GraphState:
-    state["sql_preview"] = sql_agent.generate_sql(_LLM, state["question"], state["role"])
+    state["sql_preview"] = sql_agent.generate_sql(
+        _LLM, state["question"], state["role"], state.get("history"),
+    )
     return state
 
 
@@ -174,14 +190,18 @@ def node_execution_error(state: GraphState) -> GraphState:
 
 
 _DATE_LIKE_NAMES = {"day", "date", "month", "week", "year", "created_at", "ordered_at", "updated_at", "shipped_at"}
+_PIE_KEYWORDS = ("pie", "donut", "doughnut", "share", "split", "breakdown")
 
 
-def _detect_chart_type(columns: list[str], rows: list[dict]) -> str:
+def _detect_chart_type(columns: list[str], rows: list[dict], question: str = "") -> str:
     if len(rows) <= 1 or len(columns) < 2:
         return "NONE"
     first_col = columns[0].lower()
     if first_col in _DATE_LIKE_NAMES or "date" in first_col or first_col.endswith("_at"):
         return "LINE"
+    q = (question or "").lower()
+    if any(k in q for k in _PIE_KEYWORDS):
+        return "PIE"
     return "BAR"
 
 
@@ -233,13 +253,20 @@ def _jsonable(value):
 
 def node_finalize_answer(state: GraphState) -> GraphState:
     exec_result = state["execution"]
-    chart_type = _detect_chart_type(exec_result.columns, exec_result.rows)
+    chart_type = _detect_chart_type(exec_result.columns, exec_result.rows, state.get("question", ""))
     chart_rows = _to_data_rows(exec_result.columns, exec_result.rows) if chart_type != "NONE" else []
     table = _to_table(exec_result) if exec_result.rows else None
+    analysis = analyze(state["question"], exec_result, chart_type)
+
+    llm_narrative = summarize_with_analyst(_LLM, state["question"], exec_result)
+    narrative = llm_narrative or _format_narrative(state, exec_result)
 
     state["response"] = ChatResponse(
         status="ANSWER",
-        narrative=_format_narrative(state, exec_result),
+        narrative=narrative,
+        title=analysis.title,
+        bullets=analysis.bullets or None,
+        insight=analysis.insight,
         sql_preview=state["sql_preview"],
         rows=chart_rows or None,
         chart_type=chart_type if chart_rows else "NONE",
@@ -252,6 +279,8 @@ def _route_after_guardrails(state: GraphState) -> str:
     cls = state["classification"]
     if cls == "prompt_injection":
         return "blocked"
+    if cls == "sql_injection":
+        return "sql_injection"
     if cls == "cross_tenant":
         return "cross_tenant"
     if cls == "greeting":
@@ -274,6 +303,7 @@ def build_graph():
     g.add_node("guardrails", node_guardrails)
     g.add_node("greeting", node_greeting)
     g.add_node("blocked", node_blocked)
+    g.add_node("sql_injection", node_sql_injection)
     g.add_node("cross_tenant", node_cross_tenant)
     g.add_node("out_of_scope", node_out_of_scope)
     g.add_node("sql", node_sql)
@@ -287,6 +317,7 @@ def build_graph():
     g.add_conditional_edges("guardrails", _route_after_guardrails, {
         "greeting": "greeting",
         "blocked": "blocked",
+        "sql_injection": "sql_injection",
         "cross_tenant": "cross_tenant",
         "out_of_scope": "out_of_scope",
         "sql": "sql",
@@ -302,6 +333,7 @@ def build_graph():
     })
     g.add_edge("greeting", END)
     g.add_edge("blocked", END)
+    g.add_edge("sql_injection", END)
     g.add_edge("cross_tenant", END)
     g.add_edge("out_of_scope", END)
     g.add_edge("blocked_sql", END)
@@ -321,6 +353,7 @@ def run(req: ChatRequest) -> ChatResponse:
         "user_id": req.user_id,
         "store_owner_id": req.store_owner_id,
         "first_name": req.first_name,
+        "history": req.history or [],
     }
     final = _GRAPH.invoke(initial)
     return final["response"]

@@ -3,6 +3,9 @@
     <div class="title-row">
       <span class="status-dot" aria-hidden="true"></span>
       <h2>AI Data Assistant</h2>
+      @if (hasMessages()) {
+        <button type="button" class="clear-btn" (click)="clearChat()" title="Clear chat history">Clear</button>
+      }
     </div>
     <p class="subtitle">
       Ask anything about your {{ scopeLabel() }} data — no SQL knowledge required.
@@ -72,20 +75,92 @@
           </div>
         } @else {
           <div class="bubble bubble-ai">
+            @if (m.payload?.title) {
+              <h3 class="answer-title">{{ m.payload?.title }}</h3>
+            }
+
             <p class="bubble-narrative">{{ m.text }}</p>
 
-            @if (m.payload?.rows?.length) {
-              <div class="bars">
-                @for (r of m.payload!.rows!; track r.label) {
-                  <div class="bar-row">
-                    <span class="bar-label" [title]="r.label">{{ r.label }}</span>
-                    <span class="bar-track">
-                      <span class="bar-fill" [style.width.%]="barWidth(r.value, m.payload?.rows)"></span>
-                    </span>
-                    <span class="bar-value">{{ r.value | number }}</span>
-                  </div>
+            @if (m.payload?.bullets?.length) {
+              <ul class="answer-bullets">
+                @for (b of m.payload!.bullets!; track $index) {
+                  <li>{{ b }}</li>
                 }
+              </ul>
+            }
+
+            @if (m.payload?.rows?.length && m.payload?.chartType === 'PIE') {
+              <div class="pie-wrap">
+                <svg viewBox="0 0 200 200" class="pie-svg" aria-label="Pie chart">
+                  @for (seg of pieSegments(m.payload?.rows); track seg.label) {
+                    <path [attr.d]="seg.path" [attr.fill]="seg.color">
+                      <title>{{ seg.label }}: {{ seg.value | number }} ({{ seg.pct | number:'1.0-1' }}%)</title>
+                    </path>
+                  }
+                </svg>
+                <ul class="pie-legend">
+                  @for (seg of pieSegments(m.payload?.rows); track seg.label) {
+                    <li>
+                      <span class="swatch" [style.background-color]="seg.color"></span>
+                      <span class="legend-label">{{ seg.label }}</span>
+                      <span class="legend-value">{{ formatShort(seg.value) }} ({{ seg.pct | number:'1.0-1' }}%)</span>
+                    </li>
+                  }
+                </ul>
               </div>
+            } @else if (m.payload?.rows?.length && m.payload?.chartType === 'LINE') {
+              @let lineData = lineChart(m.payload?.rows);
+              @if (lineData) {
+                <div class="line-wrap">
+                  <svg [attr.viewBox]="'0 0 ' + lineData.chartWidth + ' ' + lineData.chartHeight" class="line-svg" aria-label="Line chart">
+                    <defs>
+                      <linearGradient id="lineFill" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stop-color="#6366f1" stop-opacity="0.45" />
+                        <stop offset="100%" stop-color="#6366f1" stop-opacity="0" />
+                      </linearGradient>
+                    </defs>
+                    @for (t of lineData.ticks; track t.y) {
+                      <line [attr.x1]="56" [attr.y1]="t.y" [attr.x2]="lineData.chartWidth - 12" [attr.y2]="t.y" class="grid-line" />
+                      <text [attr.x]="48" [attr.y]="t.y + 4" class="axis-text axis-y">{{ t.label }}</text>
+                    }
+                    <path [attr.d]="lineData.areaPath" fill="url(#lineFill)" />
+                    <path [attr.d]="lineData.linePath" class="line-stroke" />
+                    @for (p of lineData.points; track $index) {
+                      <circle [attr.cx]="p.x" [attr.cy]="p.y" r="3.5" class="line-dot">
+                        <title>{{ p.label }}: {{ p.valueText }}</title>
+                      </circle>
+                    }
+                    @for (xl of lineData.xLabels; track xl.x) {
+                      <text [attr.x]="xl.x" [attr.y]="lineData.chartHeight - 14" class="axis-text axis-x">{{ xl.label }}</text>
+                    }
+                  </svg>
+                </div>
+              }
+            } @else if (m.payload?.rows?.length) {
+              @let barData = verticalBars(m.payload?.rows);
+              @if (barData) {
+                <div class="vbar-wrap">
+                  <svg [attr.viewBox]="'0 0 ' + barData.chartWidth + ' ' + barData.chartHeight" class="vbar-svg" aria-label="Bar chart">
+                    @for (t of barData.ticks; track t.y) {
+                      <line [attr.x1]="56" [attr.y1]="t.y" [attr.x2]="barData.chartWidth - 12" [attr.y2]="t.y" class="grid-line" />
+                      <text [attr.x]="48" [attr.y]="t.y + 4" class="axis-text axis-y">{{ t.label }}</text>
+                    }
+                    @for (b of barData.bars; track b.label) {
+                      <rect
+                        [attr.x]="b.x" [attr.y]="b.y"
+                        [attr.width]="b.w" [attr.height]="b.h"
+                        [attr.fill]="b.color"
+                        rx="3" ry="3" class="vbar-rect">
+                        <title>{{ b.label }}: {{ b.valueText }}</title>
+                      </rect>
+                      <text [attr.x]="b.x + b.w / 2" [attr.y]="b.y - 6" class="axis-text vbar-value">{{ b.valueText }}</text>
+                      <text [attr.x]="b.x + b.w / 2" [attr.y]="barData.chartHeight - 14" class="axis-text axis-x">
+                        {{ b.label.length > 12 ? b.label.slice(0, 12) + '…' : b.label }}
+                      </text>
+                    }
+                  </svg>
+                </div>
+              }
             }
 
             @if (m.payload?.table?.rows?.length) {
@@ -109,6 +184,10 @@
                   </tbody>
                 </table>
               </div>
+            }
+
+            @if (m.payload?.insight) {
+              <p class="answer-insight">{{ m.payload?.insight }}</p>
             }
 
             @if (m.payload?.sqlPreview) {

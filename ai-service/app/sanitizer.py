@@ -165,16 +165,17 @@ def sanitize(
 
 
 def _inject_individual_scope(tree: exp.Expression, user_id: int) -> None:
-    for select in tree.find_all(exp.Select):
+    uid = int(user_id)
+    for select in list(tree.find_all(exp.Select)):
         for table_name, alias in _tables_in(select):
             if table_name not in INDIVIDUAL_OWNED:
                 continue
-            col = exp.Column(
-                this=exp.Identifier(this=INDIVIDUAL_OWNED[table_name]),
-                table=exp.Identifier(this=alias or table_name),
+            ref = alias or table_name
+            col_name = INDIVIDUAL_OWNED[table_name]
+            _and_where(
+                select,
+                sqlglot.parse_one(f"{ref}.{col_name} = {uid}", dialect="mysql"),
             )
-            new_filter = exp.EQ(this=col, expression=exp.Literal.number(user_id))
-            _and_where(select, new_filter)
 
 
 def _inject_corporate_scope(tree: exp.Expression, store_owner_id: int) -> None:
@@ -184,30 +185,34 @@ def _inject_corporate_scope(tree: exp.Expression, store_owner_id: int) -> None:
         store_id IN (SELECT id FROM stores WHERE owner_id = <owner_id>)
     For the stores table itself → filter directly:
         owner_id = <owner_id>
+
+    We build each filter as raw SQL and let sqlglot parse it, rather than
+    constructing exp.In / exp.Subquery by hand — that internal API has changed
+    across sqlglot versions and producing it manually has caused syntax errors.
+
+    We materialise the SELECT list before mutating the tree because find_all
+    is a generator and would otherwise revisit the subqueries we just injected.
     """
-    for select in tree.find_all(exp.Select):
+    selects = list(tree.find_all(exp.Select))
+    owner_id = int(store_owner_id)
+
+    for select in selects:
         for table_name, alias in _tables_in(select):
             ref = alias or table_name
 
             if table_name in CORPORATE_OWNED:
-                col = exp.Column(
-                    this=exp.Identifier(this=CORPORATE_OWNED[table_name]),
-                    table=exp.Identifier(this=ref),
+                col_name = CORPORATE_OWNED[table_name]
+                filter_sql = (
+                    f"{ref}.{col_name} IN "
+                    f"(SELECT id FROM stores WHERE owner_id = {owner_id})"
                 )
-                subq = sqlglot.parse_one(
-                    f"SELECT id FROM stores WHERE owner_id = {int(store_owner_id)}",
-                    dialect="mysql",
-                )
-                new_filter = exp.In(this=col, query=subq)
-                _and_where(select, new_filter)
+                _and_where(select, sqlglot.parse_one(filter_sql, dialect="mysql"))
 
             elif table_name == "stores":
-                col = exp.Column(
-                    this=exp.Identifier(this="owner_id"),
-                    table=exp.Identifier(this=ref),
+                _and_where(
+                    select,
+                    sqlglot.parse_one(f"{ref}.owner_id = {owner_id}", dialect="mysql"),
                 )
-                new_filter = exp.EQ(this=col, expression=exp.Literal.number(store_owner_id))
-                _and_where(select, new_filter)
 
 
 def _tables_in(select: exp.Select) -> list[tuple[str, Optional[str]]]:

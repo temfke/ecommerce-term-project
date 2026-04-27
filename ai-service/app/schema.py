@@ -3,7 +3,7 @@ from pydantic import BaseModel, Field
 
 Role = Literal["ADMIN", "CORPORATE", "INDIVIDUAL"]
 Status = Literal["ANSWER", "GREETING", "OUT_OF_SCOPE", "BLOCKED"]
-Classification = Literal["greeting", "in_scope", "out_of_scope", "prompt_injection", "cross_tenant"]
+Classification = Literal["greeting", "in_scope", "out_of_scope", "prompt_injection", "cross_tenant", "sql_injection"]
 
 
 class ChatTurn(BaseModel):
@@ -39,9 +39,12 @@ class Guardrail(BaseModel):
 class ChatResponse(BaseModel):
     status: Status
     narrative: str
+    title: Optional[str] = None
+    bullets: Optional[List[str]] = None
+    insight: Optional[str] = None
     sql_preview: Optional[str] = None
     rows: Optional[List[DataRow]] = None
-    chart_type: Optional[Literal["BAR", "LINE", "NONE"]] = None
+    chart_type: Optional[Literal["BAR", "LINE", "PIE", "NONE"]] = None
     table: Optional[TableData] = None
     guardrail: Optional[Guardrail] = None
 

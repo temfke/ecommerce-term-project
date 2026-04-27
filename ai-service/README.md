@@ -18,7 +18,13 @@ cp .env.example .env             # then edit .env
 
 `LLM_PROVIDER=stub` works out of the box with no API key — the agents fall back
 to deterministic rules so you can develop the wiring without burning tokens.
-Switch to `anthropic` or `openai` once you have a key.
+Switch to `gemini`, `anthropic`, or `openai` once you have a key:
+
+| Provider    | Get a key at                              | Free tier |
+|-------------|-------------------------------------------|-----------|
+| `gemini`    | https://aistudio.google.com/app/apikey    | 1500 req/day, no card |
+| `anthropic` | https://console.anthropic.com             | $5 credit |
+| `openai`    | https://platform.openai.com/api-keys      | $5 credit |
 
 ## Run
 

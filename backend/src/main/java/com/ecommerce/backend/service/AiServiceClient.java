@@ -92,6 +92,9 @@ public class AiServiceClient {
     public static class AiChatResponseEnvelope {
         private String status;
         private String narrative;
+        private String title;
+        private List<String> bullets;
+        private String insight;
         @JsonProperty("sql_preview") private String sqlPreview;
         private List<AiDataRow> rows;
         @JsonProperty("chart_type") private String chartType;
@@ -102,6 +105,9 @@ public class AiServiceClient {
             return ChatResponse.builder()
                     .status(ChatResponse.Status.valueOf(status))
                     .narrative(narrative)
+                    .title(title)
+                    .bullets(bullets)
+                    .insight(insight)
                     .sqlPreview(sqlPreview)
                     .rows(rows == null ? null : rows.stream()
                             .map(r -> ChatResponse.DataRow.builder().label(r.label).value(r.value).build())

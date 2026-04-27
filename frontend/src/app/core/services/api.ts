@@ -148,6 +148,12 @@ export class Api {
 
   // Chat / AI Assistant
   askChat(req: ChatRequest) { return this.http.post<ChatResponse>(`${this.API}/chat/ask`, req); }
+  getChatHistory() {
+    return this.http.get<{ id: number; role: 'user' | 'assistant'; content: string; payload?: ChatResponse | null; createdAt: string }[]>(
+      `${this.API}/chat/history`
+    );
+  }
+  clearChatHistory() { return this.http.delete<void>(`${this.API}/chat/history`); }
 
   // Chat audit (admin)
   getChatAudit(opts: { status?: string; userId?: number; limit?: number; offset?: number } = {}) {

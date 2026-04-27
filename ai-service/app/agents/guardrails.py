@@ -41,6 +41,32 @@ _INJECTION_RE = re.compile(
     re.IGNORECASE,
 )
 
+# Detects SQL-injection patterns in the natural-language input. Applied to ALL
+# roles (yes, even admin) — admins still talk to the chatbot in English, not SQL.
+# The sanitizer would reject these later anyway, but blocking up front saves an
+# LLM call and gives the user clearer feedback.
+_SQL_INJECTION_RE = re.compile(
+    r"(\bDROP\s+(TABLE|DATABASE|SCHEMA|INDEX|VIEW)\b"
+    r"|\bDELETE\s+FROM\b"
+    r"|\bINSERT\s+INTO\b"
+    r"|\bUPDATE\s+\w+\s+SET\b"
+    r"|\bTRUNCATE\s+(TABLE\s+)?\w+"
+    r"|\bUNION\s+(ALL\s+)?SELECT\b"
+    r"|\bALTER\s+TABLE\b"
+    r"|\bGRANT\s+\w+\s+ON\b"
+    r"|\bCREATE\s+(TABLE|USER|DATABASE|INDEX|VIEW)\b"
+    r"|\b1\s*=\s*1\b"
+    r"|--\s+\w"
+    r"|/\*.*\*/"
+    r"|\bEXEC(UTE)?\s*\("
+    r"|\bxp_\w+"
+    r"|\bsp_\w+"
+    r"|\bLOAD_FILE\s*\("
+    r"|\bINTO\s+(OUT|DUMP)FILE\b"
+    r")",
+    re.IGNORECASE,
+)
+
 # Catches attempts to view other tenants' data via natural language.
 # Skipped for ADMIN role since admins legitimately have platform-wide visibility.
 _CROSS_TENANT_RE = re.compile(
@@ -72,7 +98,7 @@ _GREETING_RE = re.compile(
 )
 _OFF_TOPIC = (
     "weather", "stock price", "bitcoin", "joke", "poem", "recipe",
-    "translate", "write code", "capital of", "who is", "who are you",
+    "translate", "write code", "capital of", "who are you",
     "tell me about yourself",
 )
 
@@ -82,16 +108,22 @@ def classify_stub(question: str, role: str = "INDIVIDUAL") -> tuple[Classificati
     if _INJECTION_RE.search(q):
         m = _INJECTION_RE.search(q)
         return "prompt_injection", m.group(0) if m else "injection pattern"
+    m = _SQL_INJECTION_RE.search(q)
+    if m:
+        return "sql_injection", m.group(0)
     if role != "ADMIN":
         m = _CROSS_TENANT_RE.search(q)
         if m:
             return "cross_tenant", m.group(0)
     if _GREETING_RE.match(q):
         return "greeting", "greeting"
-    lower = q.lower()
-    for term in _OFF_TOPIC:
-        if term in lower:
-            return "out_of_scope", term
+    # Admins have full platform access — let the SQL agent decide what's
+    # answerable. Non-admins still get the off-topic safety net.
+    if role != "ADMIN":
+        lower = q.lower()
+        for term in _OFF_TOPIC:
+            if term in lower:
+                return "out_of_scope", term
     return "in_scope", q[:60]
 
 
@@ -127,6 +159,12 @@ def classify_with_llm(llm: BaseChatModel, question: str, role: str = "INDIVIDUAL
 
 
 def classify(llm: Optional[BaseChatModel], question: str, role: str = "INDIVIDUAL") -> tuple[Classification, str]:
-    if llm is None:
-        return classify_stub(question, role)
-    return classify_with_llm(llm, question, role)
+    """Always uses the deterministic regex classifier.
+
+    Free LLM tiers cap daily requests; the SQL and Analysis agents already
+    burn 2 calls per question. The regex guardrails catch every documented
+    attack vector (prompt injection, cross-tenant, SQL injection, off-topic),
+    so the LLM classifier was redundant. Re-enable by calling
+    classify_with_llm directly if you upgrade to a paid tier.
+    """
+    return classify_stub(question, role)

@@ -1,5 +1,5 @@
 export type ChatStatus = 'ANSWER' | 'GREETING' | 'OUT_OF_SCOPE' | 'BLOCKED';
-export type ChartType = 'BAR' | 'LINE' | 'NONE';
+export type ChartType = 'BAR' | 'LINE' | 'PIE' | 'NONE';
 
 export interface ChatDataRow {
   label: string;
@@ -20,6 +20,9 @@ export interface ChatTable {
 export interface ChatResponse {
   status: ChatStatus;
   narrative: string;
+  title?: string | null;
+  bullets?: string[] | null;
+  insight?: string | null;
   sqlPreview?: string | null;
   rows?: ChatDataRow[] | null;
   chartType?: ChartType | null;

@@ -11,6 +11,15 @@ from .config import settings
 def get_chat_model() -> Optional[BaseChatModel]:
     provider = settings.LLM_PROVIDER
 
+    if provider == "gemini" and settings.GOOGLE_API_KEY:
+        from langchain_google_genai import ChatGoogleGenerativeAI
+        return ChatGoogleGenerativeAI(
+            model=settings.GOOGLE_MODEL,
+            google_api_key=settings.GOOGLE_API_KEY,
+            temperature=0,
+            max_output_tokens=1024,
+        )
+
     if provider == "anthropic" and settings.ANTHROPIC_API_KEY:
         from langchain_anthropic import ChatAnthropic
         return ChatAnthropic(

@@ -1,16 +1,18 @@
 """SQL Agent: turn a natural-language question into a SELECT statement.
 
-In step 2 we only GENERATE the SQL — execution and sanitization come in steps 4-5.
-The agent never sees raw role/user values from the request body that could let
-the LLM be tricked into removing scope filters; the role-scoped WHERE clauses
-are placeholders that the sanitizer (step 4) will rewrite server-side.
+The agent generates SQL only; the sanitizer adds role-scoped WHERE clauses
+server-side so the LLM never controls who-can-see-what.
+
+When prior conversation turns are provided, they're passed as context so
+follow-ups like "now show it as a pie chart" or "what about last week?"
+resolve against the previous question's SQL.
 """
-from typing import Optional
+from typing import List, Optional
 
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import SystemMessage, HumanMessage
 
-from ..schema import DB_SCHEMA_DOC, Role
+from ..schema import ChatTurn, DB_SCHEMA_DOC, Role
 
 
 SYSTEM_PROMPT = """You are a senior SQL developer specializing in MySQL 8.
@@ -28,6 +30,16 @@ the schema below. Strict rules:
    WHERE clause from the authenticated session automatically. Just write
    the analytical SQL the question asks for.
 7. LIMIT to at most 100 rows for list queries.
+8. CHART-SHAPE HEURISTIC — pick the SELECT shape from the user's intent:
+   - "pie chart", "donut", "breakdown", "split", "share", "by category",
+     "by status", "by [some dimension]" → output (label_text, numeric_value)
+     with GROUP BY on the categorical column. NEVER return a single
+     aggregate row when a chart is asked for.
+   - "trend", "over time", "by day/week/month" → first column is the date,
+     second is the metric, GROUP BY date, ORDER BY date.
+   - "top N", "best", "highest" → ORDER BY value DESC LIMIT N.
+   - Plain count or total ("how many", "total") → fine to return a single
+     aggregate row.
 
 Schema:
 """
@@ -88,22 +100,49 @@ def generate_sql_stub(question: str, role: Role) -> str:
     )
 
 
-def generate_sql_with_llm(llm: BaseChatModel, question: str, role: Role) -> str:
-    full_prompt = SYSTEM_PROMPT + DB_SCHEMA_DOC + "\n\n" + SCOPE_HINT[role]
+def _format_history(history: Optional[List[ChatTurn]]) -> str:
+    if not history:
+        return ""
+    lines = []
+    for t in history[-10:]:
+        prefix = "User" if t.role == "user" else "Assistant"
+        # Keep each line short so the prompt doesn't balloon
+        snippet = (t.content or "").strip().replace("\n", " ")
+        if len(snippet) > 240:
+            snippet = snippet[:240] + "…"
+        lines.append(f"{prefix}: {snippet}")
+    return (
+        "\n\nPrior conversation (most recent last) — use this only to resolve "
+        "follow-up questions like \"show it as a chart\" or \"what about last month\":\n"
+        + "\n".join(lines)
+    )
+
+
+def generate_sql_with_llm(
+    llm: BaseChatModel,
+    question: str,
+    role: Role,
+    history: Optional[List[ChatTurn]] = None,
+) -> str:
+    full_prompt = SYSTEM_PROMPT + DB_SCHEMA_DOC + "\n\n" + SCOPE_HINT[role] + _format_history(history)
     response = llm.invoke([
         SystemMessage(content=full_prompt),
         HumanMessage(content=question),
     ])
     text = response.content if isinstance(response.content, str) else str(response.content)
-    # Strip stray markdown fences if the model added any
     cleaned = text.strip().removeprefix("```sql").removeprefix("```").removesuffix("```").strip()
     return cleaned
 
 
-def generate_sql(llm: Optional[BaseChatModel], question: str, role: Role) -> str:
+def generate_sql(
+    llm: Optional[BaseChatModel],
+    question: str,
+    role: Role,
+    history: Optional[List[ChatTurn]] = None,
+) -> str:
     if llm is None:
         return generate_sql_stub(question, role)
     try:
-        return generate_sql_with_llm(llm, question, role)
+        return generate_sql_with_llm(llm, question, role, history)
     except Exception:
         return generate_sql_stub(question, role)

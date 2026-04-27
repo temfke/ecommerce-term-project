@@ -7,9 +7,11 @@ load_dotenv()
 class Settings:
     LLM_PROVIDER: str = os.getenv("LLM_PROVIDER", "stub").lower()
 
+    GOOGLE_API_KEY: str = os.getenv("GOOGLE_API_KEY", "")
     ANTHROPIC_API_KEY: str = os.getenv("ANTHROPIC_API_KEY", "")
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
 
+    GOOGLE_MODEL: str = os.getenv("GOOGLE_MODEL", "gemini-2.5-flash-lite")
     ANTHROPIC_MODEL: str = os.getenv("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001")
     OPENAI_MODEL: str = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 
