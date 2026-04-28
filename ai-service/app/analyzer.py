@@ -22,6 +22,9 @@ _TITLE_KEYWORDS = [
     (("revenue", "trend", "monthly", "weekly", "over time"), "📈 Revenue Trend"),
     (("review", "rating", "star"), "⭐ Reviews"),
     (("shipment", "tracking", "delivery", "shipping"), "🚚 Shipments"),
+    # Store-specific title must precede the generic "top/best" rule below,
+    # otherwise "top seller store" gets the product-flavoured 🏆 Top Performers.
+    (("seller store", "top store", "best store", "store ranking", "which store", "top seller", "leading store", "leading shop"), "🏪 Top Stores"),
     (("top", "best", "selling", "popular"), "🏆 Top Performers"),
     (("customer", "spending", "purchase"), "👥 Customer Insights"),
     (("inventory", "stock"), "📦 Inventory"),
@@ -82,6 +85,8 @@ def _pairs(exec_result: ExecutionResult) -> list[tuple[str, float]]:
 
 
 def _compute_bullets(exec_result: ExecutionResult, chart_type: str) -> list[str]:
+    if exec_result.row_count <= 1:
+        return []
     pairs = _pairs(exec_result)
     if not pairs:
         return []

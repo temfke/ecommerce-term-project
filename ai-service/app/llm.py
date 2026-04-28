@@ -18,6 +18,8 @@ def get_chat_model() -> Optional[BaseChatModel]:
             google_api_key=settings.GOOGLE_API_KEY,
             temperature=0,
             max_output_tokens=1024,
+            request_timeout=settings.LLM_REQUEST_TIMEOUT_SECONDS,
+            retries=settings.LLM_MAX_RETRIES,
         )
 
     if provider == "anthropic" and settings.ANTHROPIC_API_KEY:
@@ -27,6 +29,8 @@ def get_chat_model() -> Optional[BaseChatModel]:
             api_key=settings.ANTHROPIC_API_KEY,
             temperature=0,
             max_tokens=1024,
+            timeout=settings.LLM_REQUEST_TIMEOUT_SECONDS,
+            max_retries=settings.LLM_MAX_RETRIES,
         )
 
     if provider == "openai" and settings.OPENAI_API_KEY:
@@ -36,6 +40,8 @@ def get_chat_model() -> Optional[BaseChatModel]:
             api_key=settings.OPENAI_API_KEY,
             temperature=0,
             max_tokens=1024,
+            timeout=settings.LLM_REQUEST_TIMEOUT_SECONDS,
+            max_retries=settings.LLM_MAX_RETRIES,
         )
 
     # provider == "stub" or missing key → caller must handle None

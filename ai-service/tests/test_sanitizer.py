@@ -25,7 +25,7 @@ def run():
     failed = 0
 
     cases = [
-        # (label, raw_sql, role, user_id, store_owner_id, expect_ok, must_contain_in_sql_or_reason)
+        # (label, raw_sql, role, user_id, store_owner_id, expect_ok, must_contain_in_sql_or_reason, [cross_store])
         ("INDIVIDUAL: orders gets user_id filter injected",
          "SELECT id, grand_total FROM orders ORDER BY created_at DESC LIMIT 10",
          "INDIVIDUAL", 42, None, True, "user_id"),
@@ -69,11 +69,40 @@ def run():
         ("Inject LIMIT when missing",
          "SELECT id FROM products",
          "ADMIN", 1, None, True, "LIMIT 100"),
+
+        ("CORPORATE rival mode: products NOT auto-scoped",
+         "SELECT s.name, COUNT(p.id) AS rivals "
+         "FROM products p JOIN stores s ON s.id = p.store_id "
+         "WHERE p.category_id = 5 GROUP BY s.id",
+         "CORPORATE", 1, 7, True, "FROM products", True),
+
+        ("CORPORATE rival mode: stores listed across platform",
+         "SELECT s.name FROM stores s WHERE s.status = 'OPEN'",
+         "CORPORATE", 1, 7, True, "FROM stores", True),
+
+        ("CORPORATE rival mode: orders STILL scoped to own stores",
+         "SELECT id FROM orders LIMIT 5",
+         "CORPORATE", 1, 7, True, "owner_id = 7", True),
+
+        ("CORPORATE own review mode: reviews scoped to owned store products",
+         "SELECT r.star_rating FROM reviews r LIMIT 10",
+         "CORPORATE", 1, 7, True, "owner_id = 7"),
+
+        ("INDIVIDUAL public catalog mode: review summaries can span products",
+         "SELECT p.name, AVG(r.star_rating) AS rating "
+         "FROM reviews r JOIN products p ON p.id = r.product_id "
+         "GROUP BY p.id",
+         "INDIVIDUAL", 42, None, True, "AVG", True),
     ]
 
-    for label, sql, role, uid, sid, expect_ok, needle in cases:
+    for case in cases:
+        if len(case) == 7:
+            label, sql, role, uid, sid, expect_ok, needle = case
+            cross_store = False
+        else:
+            label, sql, role, uid, sid, expect_ok, needle, cross_store = case
         print(f"\n[{label}]")
-        result = sanitize(sql, role, uid, sid)  # type: ignore
+        result = sanitize(sql, role, uid, sid, cross_store=cross_store)  # type: ignore
         ok_match = (result.ok == expect_ok)
         text = (result.sql or "") + (result.reason or "")
         contains = needle.lower() in text.lower()

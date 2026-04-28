@@ -6,6 +6,7 @@ visualization.
 """
 from typing import Optional, TypedDict
 
+from langchain_core.messages import HumanMessage, SystemMessage
 from langgraph.graph import StateGraph, START, END
 
 from .agents import guardrails, sql as sql_agent
@@ -28,6 +29,8 @@ class GraphState(TypedDict, total=False):
     history: list
     classification: Classification
     trigger: str
+    cross_store: bool
+    public_catalog: bool
     sql_preview: str
     sanitize_blocked: bool
     sanitize_reason: str
@@ -47,6 +50,8 @@ def node_guardrails(state: GraphState) -> GraphState:
     cls, trig = guardrails.classify(_LLM, state["question"], state["role"])
     state["classification"] = cls
     state["trigger"] = trig
+    state["cross_store"] = guardrails.detect_rival_query(state["question"], state["role"])
+    state["public_catalog"] = guardrails.detect_public_info_query(state["question"], state["role"])
     return state
 
 
@@ -105,16 +110,77 @@ def node_cross_tenant(state: GraphState) -> GraphState:
     return state
 
 
+_EXPLANATION_FALLBACK = (
+    "I work out the figure by aggregating the relevant rows from your data — "
+    "using the scoped rows available to your role. When a percentage is "
+    "involved, I divide the matching part by the matching total; otherwise I "
+    "summarize the relevant totals, rankings, or categories from the result."
+)
+
+_EXPLANATION_SYSTEM_PROMPT = (
+    "You are explaining or clarifying the previous assistant answer. "
+    "Describe the reasoning, formula, or meaning in plain English, in 2-3 short "
+    "sentences (under 80 words). Do NOT show SQL, code, or column names; "
+    "phrase it the way a friendly analyst would on a call."
+)
+
+
+def _last_assistant_turn(history) -> str:
+    if not history:
+        return ""
+    for turn in reversed(history):
+        role = getattr(turn, "role", None) if not isinstance(turn, dict) else turn.get("role")
+        content = getattr(turn, "content", None) if not isinstance(turn, dict) else turn.get("content")
+        if role == "assistant" and content:
+            return str(content)
+    return ""
+
+
+def node_explanation(state: GraphState) -> GraphState:
+    prev = _last_assistant_turn(state.get("history") or [])
+    narrative = _EXPLANATION_FALLBACK
+    if _LLM is not None and prev:
+        try:
+            response = _LLM.invoke([
+                SystemMessage(content=_EXPLANATION_SYSTEM_PROMPT),
+                HumanMessage(
+                    content=(
+                        f"Previous answer the user just received:\n{prev}\n\n"
+                        f"User now asks: {state['question']}"
+                    ),
+                ),
+            ])
+            text = response.content if isinstance(response.content, str) else str(response.content)
+            text = text.strip()
+            if text:
+                narrative = text
+        except Exception:
+            pass
+    state["response"] = ChatResponse(status="ANSWER", narrative=narrative)
+    return state
+
+
 def node_out_of_scope(state: GraphState) -> GraphState:
-    state["response"] = ChatResponse(
-        status="OUT_OF_SCOPE",
-        narrative=(
+    trigger = state.get("trigger", "")
+    if trigger == "raw SQL on demand":
+        narrative = (
+            "I can't generate raw SQL on request. I do show the query I ran "
+            "alongside each answer so you can see how I got the numbers — "
+            "ask me a data question and the SQL preview comes with it."
+        )
+        guardrail_type = "SQL export request"
+    else:
+        narrative = (
             "That's outside what I can help with. I focus on your sales, "
             "products, orders, customers, shipments, and reviews."
-        ),
+        )
+        guardrail_type = "Out of scope"
+    state["response"] = ChatResponse(
+        status="OUT_OF_SCOPE",
+        narrative=narrative,
         guardrail=Guardrail(
-            type="Out of scope",
-            trigger=state["trigger"],
+            type=guardrail_type,
+            trigger=trigger,
             action="No SQL generated",
         ),
     )
@@ -139,6 +205,7 @@ def node_sanitize(state: GraphState) -> GraphState:
         state["role"],
         state["user_id"],
         state.get("store_owner_id"),
+        cross_store=state.get("cross_store", False) or state.get("public_catalog", False),
     )
     if not result.ok:
         state["sanitize_blocked"] = True
@@ -218,10 +285,65 @@ def _to_data_rows(columns: list[str], rows: list[dict]) -> list[DataRow]:
     return out
 
 
+def _display_value(value) -> str:
+    from decimal import Decimal
+    if value is None:
+        return "0"
+    if isinstance(value, Decimal):
+        value = float(value)
+    if isinstance(value, float):
+        if value == int(value):
+            return f"{int(value):,}"
+        return f"{value:,.2f}"
+    if isinstance(value, int):
+        return f"{value:,}"
+    return str(value)
+
+
+def _display_money(value) -> str:
+    from decimal import Decimal
+    if value is None:
+        value = 0
+    if isinstance(value, Decimal):
+        value = float(value)
+    if isinstance(value, (int, float)):
+        return f"{float(value):,.2f}"
+    return str(value)
+
+
+def _simple_row_answer(row: dict) -> Optional[str]:
+    cols = {str(k).lower(): k for k in row.keys()}
+
+    if "store" in cols and "sales_count" in cols:
+        store = row[cols["store"]]
+        sales_raw = row[cols["sales_count"]]
+        sales = _display_value(sales_raw)
+        sale_word = "sale" if sales_raw == 1 else "sales"
+        revenue = row.get(cols.get("revenue")) if "revenue" in cols else None
+        if revenue is not None:
+            return f"{store} made {sales} {sale_word} with {_display_money(revenue)} in revenue."
+        return f"{store} made {sales} {sale_word}."
+
+    item_key = cols.get("product") or cols.get("item") or cols.get("name")
+    if item_key and "units" in cols:
+        return f"The most sold item is {row[item_key]} with {_display_value(row[cols['units']])} units sold."
+
+    if len(row) == 1:
+        key = next(iter(row.keys()))
+        label = str(key).replace("_", " ")
+        return f"{label.capitalize()}: {_display_value(row[key])}."
+
+    return None
+
+
 def _format_narrative(state: GraphState, exec_result: ExecutionResult) -> str:
     scope = _scope_label(state["role"])
     if exec_result.row_count == 0:
         return f"No matching data in your {scope}."
+    if exec_result.row_count == 1:
+        direct = _simple_row_answer(exec_result.rows[0])
+        if direct:
+            return direct
     if exec_result.row_count == 1 and len(exec_result.columns) == 1:
         col = exec_result.columns[0]
         val = exec_result.rows[0][col]
@@ -258,8 +380,12 @@ def node_finalize_answer(state: GraphState) -> GraphState:
     table = _to_table(exec_result) if exec_result.rows else None
     analysis = analyze(state["question"], exec_result, chart_type)
 
-    llm_narrative = summarize_with_analyst(_LLM, state["question"], exec_result)
-    narrative = llm_narrative or _format_narrative(state, exec_result)
+    deterministic_narrative = _format_narrative(state, exec_result)
+    if exec_result.row_count == 1:
+        narrative = deterministic_narrative
+    else:
+        llm_narrative = summarize_with_analyst(_LLM, state["question"], exec_result)
+        narrative = llm_narrative or deterministic_narrative
 
     state["response"] = ChatResponse(
         status="ANSWER",
@@ -285,6 +411,8 @@ def _route_after_guardrails(state: GraphState) -> str:
         return "cross_tenant"
     if cls == "greeting":
         return "greeting"
+    if cls == "explanation":
+        return "explanation"
     if cls == "out_of_scope":
         return "out_of_scope"
     return "sql"
@@ -306,6 +434,7 @@ def build_graph():
     g.add_node("sql_injection", node_sql_injection)
     g.add_node("cross_tenant", node_cross_tenant)
     g.add_node("out_of_scope", node_out_of_scope)
+    g.add_node("explanation", node_explanation)
     g.add_node("sql", node_sql)
     g.add_node("sanitize", node_sanitize)
     g.add_node("blocked_sql", node_sanitize_blocked)
@@ -320,6 +449,7 @@ def build_graph():
         "sql_injection": "sql_injection",
         "cross_tenant": "cross_tenant",
         "out_of_scope": "out_of_scope",
+        "explanation": "explanation",
         "sql": "sql",
     })
     g.add_edge("sql", "sanitize")
@@ -336,6 +466,7 @@ def build_graph():
     g.add_edge("sql_injection", END)
     g.add_edge("cross_tenant", END)
     g.add_edge("out_of_scope", END)
+    g.add_edge("explanation", END)
     g.add_edge("blocked_sql", END)
     g.add_edge("execution_error", END)
     g.add_edge("finalize_answer", END)

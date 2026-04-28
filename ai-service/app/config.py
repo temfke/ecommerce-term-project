@@ -14,6 +14,8 @@ class Settings:
     GOOGLE_MODEL: str = os.getenv("GOOGLE_MODEL", "gemini-2.5-flash-lite")
     ANTHROPIC_MODEL: str = os.getenv("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001")
     OPENAI_MODEL: str = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+    LLM_REQUEST_TIMEOUT_SECONDS: float = float(os.getenv("LLM_REQUEST_TIMEOUT_SECONDS", "8"))
+    LLM_MAX_RETRIES: int = int(os.getenv("LLM_MAX_RETRIES", "0"))
 
     HOST: str = os.getenv("HOST", "127.0.0.1")
     PORT: int = int(os.getenv("PORT", "8001"))
@@ -25,7 +27,7 @@ class Settings:
     DB_NAME: str = os.getenv("DB_NAME", "ecommerce_db")
     DB_USER: str = os.getenv("DB_USER", "chatbot_ro")
     DB_PASSWORD: str = os.getenv("DB_PASSWORD", "")
-    DB_QUERY_TIMEOUT_SECONDS: int = int(os.getenv("DB_QUERY_TIMEOUT_SECONDS", "10"))
+    DB_QUERY_TIMEOUT_SECONDS: int = int(os.getenv("DB_QUERY_TIMEOUT_SECONDS", "25"))
 
 
 settings = Settings()

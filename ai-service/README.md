@@ -1,6 +1,6 @@
-# DataPulse AI Service
+# TEMF AI Service
 
-Python FastAPI + LangGraph multi-agent service that powers the DataPulse chatbot.
+Python FastAPI + LangGraph multi-agent service that powers the TEMF chatbot.
 
 In step 2 the graph runs **Guardrails → SQL** and stops — it returns the generated
 SQL preview to Spring Boot without executing it. Steps 4–6 will add a sanitizer,

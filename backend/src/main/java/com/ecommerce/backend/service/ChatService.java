@@ -44,10 +44,22 @@ public class ChatService {
             try {
                 return aiServiceClient.ask(request, currentUser, resolveStoreScope(currentUser));
             } catch (Exception e) {
-                log.warn("AI service call failed, falling back to local stub", e);
-                // fall through to local keyword stub
+                // The AI service is the real answering path. If it's unreachable,
+                // be loud about it — silently returning a hardcoded "demo" card
+                // (as we used to) hides outages and shipped fake data to admins.
+                log.error("AI service call failed for question='{}'", truncate(q, 120), e);
+                return blocked(
+                        "AI service unavailable",
+                        truncate(e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage(), 200),
+                        "No SQL generated",
+                        "I couldn't reach the analytics engine to answer that. " +
+                                "Check that the ai-service is running on the configured URL and that its database connection is healthy, then try again."
+                );
             }
         }
+
+        // Below: local keyword stubs used ONLY when ai-service is not configured
+        // (chat.ai-service.url is blank). Real production traffic never gets here.
 
         if (PROMPT_INJECTION.matcher(q).find()) {
             return blocked("Prompt Injection",

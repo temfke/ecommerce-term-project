@@ -12,7 +12,7 @@ from .graph import run as run_graph
 from .schema import ChatRequest, ChatResponse
 
 
-app = FastAPI(title="DataPulse AI Service", version="0.2.0")
+app = FastAPI(title="TEMF AI Service", version="0.2.0")
 
 
 @app.get("/health")

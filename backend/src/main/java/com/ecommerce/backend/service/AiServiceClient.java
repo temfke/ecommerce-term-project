@@ -51,7 +51,10 @@ public class AiServiceClient {
 
         HttpRequest.Builder builder = HttpRequest.newBuilder()
                 .uri(URI.create(aiServiceUrl.replaceAll("/+$", "") + "/chat/ask"))
-                .timeout(Duration.ofSeconds(30))
+                // Budget: DB query cap (25s) + 2 LLM calls (SQL gen + narrative),
+                // each up to ~10s on a cold path. 60s leaves headroom without
+                // letting a genuinely stuck request hang the UI forever.
+                .timeout(Duration.ofSeconds(60))
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(mapper.writeValueAsString(payload)));
 

@@ -69,7 +69,15 @@ def sanitize(
     role: Role,
     user_id: int,
     store_owner_id: Optional[int] = None,
+    cross_store: bool = False,
 ) -> SanitizeResult:
+    """Sanitize an LLM-produced SQL string and re-inject scope filters.
+
+    `cross_store=True` is set by the graph for marketplace-public catalog
+    questions (including CORPORATE rival/competitor questions). It relaxes the
+    filter on catalog tables such as `products` and `stores`, but keeps private
+    transaction tables scoped so other tenants' orders are never exposed.
+    """
     if not raw_sql or not raw_sql.strip():
         return SanitizeResult(ok=False, reason="Empty SQL", blocked_by="empty")
 
@@ -148,7 +156,7 @@ def sanitize(
 
     # Inject scope filters on every SELECT in the tree
     if role == "INDIVIDUAL":
-        _inject_individual_scope(tree, user_id)
+        _inject_individual_scope(tree, user_id, public_catalog=cross_store)
     elif role == "CORPORATE":
         if store_owner_id is None:
             return SanitizeResult(
@@ -156,7 +164,7 @@ def sanitize(
                 reason="Corporate user has no store mapped to their account",
                 blocked_by="missing_scope",
             )
-        _inject_corporate_scope(tree, store_owner_id)
+        _inject_corporate_scope(tree, store_owner_id, cross_store=cross_store)
     # ADMIN: no rewrite
 
     _enforce_limit(tree, MAX_ROWS)
@@ -164,11 +172,17 @@ def sanitize(
     return SanitizeResult(ok=True, sql=tree.sql(dialect="mysql", pretty=True))
 
 
-def _inject_individual_scope(tree: exp.Expression, user_id: int) -> None:
+def _inject_individual_scope(
+    tree: exp.Expression,
+    user_id: int,
+    public_catalog: bool = False,
+) -> None:
     uid = int(user_id)
     for select in list(tree.find_all(exp.Select)):
         for table_name, alias in _tables_in(select):
             if table_name not in INDIVIDUAL_OWNED:
+                continue
+            if public_catalog and table_name == "reviews":
                 continue
             ref = alias or table_name
             col_name = INDIVIDUAL_OWNED[table_name]
@@ -178,13 +192,22 @@ def _inject_individual_scope(tree: exp.Expression, user_id: int) -> None:
             )
 
 
-def _inject_corporate_scope(tree: exp.Expression, store_owner_id: int) -> None:
+def _inject_corporate_scope(
+    tree: exp.Expression,
+    store_owner_id: int,
+    cross_store: bool = False,
+) -> None:
     """Corporate users see only data tied to stores they own.
 
     For tables with store_id (orders, products) → filter via subquery:
         store_id IN (SELECT id FROM stores WHERE owner_id = <owner_id>)
     For the stores table itself → filter directly:
         owner_id = <owner_id>
+
+    `cross_store=True` skips the filter on `products` and the `stores` table
+    (the catalog has no PII), but still scopes `orders` so cross-tenant
+    transaction data never leaks. Used for rival/competitor questions where
+    the corporate user legitimately needs to see other stores in their space.
 
     We build each filter as raw SQL and let sqlglot parse it, rather than
     constructing exp.In / exp.Subquery by hand — that internal API has changed
@@ -201,6 +224,8 @@ def _inject_corporate_scope(tree: exp.Expression, store_owner_id: int) -> None:
             ref = alias or table_name
 
             if table_name in CORPORATE_OWNED:
+                if cross_store and table_name != "orders":
+                    continue
                 col_name = CORPORATE_OWNED[table_name]
                 filter_sql = (
                     f"{ref}.{col_name} IN "
@@ -208,11 +233,20 @@ def _inject_corporate_scope(tree: exp.Expression, store_owner_id: int) -> None:
                 )
                 _and_where(select, sqlglot.parse_one(filter_sql, dialect="mysql"))
 
-            elif table_name == "stores":
+            elif table_name == "stores" and not cross_store:
                 _and_where(
                     select,
                     sqlglot.parse_one(f"{ref}.owner_id = {owner_id}", dialect="mysql"),
                 )
+
+            elif table_name == "reviews" and not cross_store:
+                filter_sql = (
+                    f"{ref}.product_id IN ("
+                    "SELECT p.id FROM products p "
+                    "JOIN stores s ON s.id = p.store_id "
+                    f"WHERE s.owner_id = {owner_id})"
+                )
+                _and_where(select, sqlglot.parse_one(filter_sql, dialect="mysql"))
 
 
 def _tables_in(select: exp.Select) -> list[tuple[str, Optional[str]]]:

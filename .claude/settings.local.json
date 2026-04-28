@@ -4,7 +4,13 @@
       "Bash(npx ng *)",
       "Bash(./mvnw -q -DskipTests compile)",
       "Bash(python etl/load_data.py)",
-      "Bash(python etl/update_giftcards.py)"
+      "Bash(python etl/update_giftcards.py)",
+      "Bash(python -m tests.test_sanitizer)",
+      "Bash(./.venv/Scripts/python.exe -m tests.test_sanitizer)",
+      "Bash(./.venv/Scripts/python.exe -c \"from app.graph import build_graph; build_graph\\(\\); print\\('graph builds OK'\\)\")",
+      "Bash(./.venv/Scripts/python.exe -c ' *)",
+      "Bash(./mvnw.cmd -q -DskipTests compile)",
+      "Bash(echo \"exit=$?\")"
     ]
   }
 }
