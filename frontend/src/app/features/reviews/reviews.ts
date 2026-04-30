@@ -1,6 +1,6 @@
 import { Component, ChangeDetectionStrategy, inject, signal, computed, OnInit } from '@angular/core';
 import { DatePipe } from '@angular/common';
-import { ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { Api } from '../../core/services/api';
 import { Auth } from '../../core/services/auth';
 import { Review } from '../../core/models/review.model';
@@ -11,7 +11,7 @@ const NEXT_PAGE_SIZE = 100;
 
 @Component({
   selector: 'app-reviews',
-  imports: [DatePipe, ReactiveFormsModule, InfiniteScrollDirective],
+  imports: [DatePipe, RouterLink, InfiniteScrollDirective],
   templateUrl: './reviews.html',
   styleUrl: './reviews.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -19,14 +19,11 @@ const NEXT_PAGE_SIZE = 100;
 export class Reviews implements OnInit {
   private readonly api = inject(Api);
   private readonly auth = inject(Auth);
-  private readonly fb = inject(FormBuilder);
 
   readonly reviews = signal<Review[]>([]);
   readonly loading = signal(true);
   readonly loadingMore = signal(false);
   readonly endReached = signal(false);
-  readonly showForm = signal(false);
-  readonly error = signal('');
   readonly expandedIds = signal<ReadonlySet<number>>(new Set());
 
   readonly CLAMP_THRESHOLD = 280;
@@ -36,12 +33,6 @@ export class Reviews implements OnInit {
 
   readonly isIndividual = computed(() => this.auth.userRole() === 'INDIVIDUAL');
   readonly isAdmin = computed(() => this.auth.userRole() === 'ADMIN');
-
-  readonly form = this.fb.nonNullable.group({
-    productId: [0, [Validators.required, Validators.min(1)]],
-    starRating: [5, [Validators.required, Validators.min(1), Validators.max(5)]],
-    reviewBody: [''],
-  });
 
   ngOnInit() {
     this.loadReviews();
@@ -83,25 +74,6 @@ export class Reviews implements OnInit {
         this.loadingMore.set(false);
       },
       error: () => { this.loadingMore.set(false); this.endReached.set(true); },
-    });
-  }
-
-  openCreate() {
-    this.form.reset({ starRating: 5, productId: 0 });
-    this.showForm.set(true);
-    this.error.set('');
-  }
-
-  closeForm() {
-    this.showForm.set(false);
-    this.error.set('');
-  }
-
-  onSubmit() {
-    if (this.form.invalid) { this.form.markAllAsTouched(); return; }
-    this.api.createReview(this.form.getRawValue()).subscribe({
-      next: () => { this.closeForm(); this.loadReviews(); },
-      error: (err) => this.error.set(err.error?.message ?? 'Failed to submit review'),
     });
   }
 

@@ -256,19 +256,33 @@ def _tables_in(select: exp.Select) -> list[tuple[str, Optional[str]]]:
     to those subqueries' SELECT nodes and will be visited separately.
     """
     seen: list[tuple[str, Optional[str]]] = []
-    sources = []
-    if select.args.get("from"):
-        sources.append(select.args["from"])
-    sources.extend(select.args.get("joins") or [])
+    sources: list[exp.Expression] = []
+
+    from_expr = select.args.get("from")
+    if from_expr is not None:
+        direct = from_expr.this
+        if direct is not None:
+            sources.append(direct)
+        sources.extend(from_expr.expressions or [])
+
+    for join in select.args.get("joins") or []:
+        direct = join.this
+        if direct is not None:
+            sources.append(direct)
 
     for src in sources:
-        for tbl in src.find_all(exp.Table):
-            name = (tbl.name or "").lower()
-            alias = None
-            if tbl.alias:
-                alias = tbl.alias if isinstance(tbl.alias, str) else tbl.alias_or_name
-            if name:
-                seen.append((name, alias))
+        # Important: do not recurse into Subquery sources here. Each nested
+        # SELECT is visited by the caller, and adding its base table filter to
+        # the outer SELECT produces invalid SQL like `orders.user_id = ...`
+        # when the outer scope only knows the derived-table alias.
+        if not isinstance(src, exp.Table):
+            continue
+        name = (src.name or "").lower()
+        alias = None
+        if src.alias:
+            alias = src.alias if isinstance(src.alias, str) else src.alias_or_name
+        if name:
+            seen.append((name, alias))
     return seen
 
 

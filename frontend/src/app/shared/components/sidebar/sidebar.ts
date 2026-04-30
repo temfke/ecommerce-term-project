@@ -41,6 +41,7 @@ export class Sidebar {
         { label: 'Products', route: '/products', icon: '📦', roles: ['ADMIN', 'CORPORATE', 'INDIVIDUAL'] },
         { label: 'Cart', route: '/cart', icon: '🛒', roles: ['INDIVIDUAL'] },
         { label: 'Orders', route: '/orders', icon: '📋', roles: ['ADMIN', 'CORPORATE', 'INDIVIDUAL'] },
+        { label: 'My Reviews', route: '/reviews', icon: '⭐', roles: ['INDIVIDUAL'] },
       ],
     },
     {

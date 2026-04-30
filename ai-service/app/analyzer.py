@@ -24,7 +24,7 @@ _TITLE_KEYWORDS = [
     (("shipment", "tracking", "delivery", "shipping"), "🚚 Shipments"),
     # Store-specific title must precede the generic "top/best" rule below,
     # otherwise "top seller store" gets the product-flavoured 🏆 Top Performers.
-    (("seller store", "top store", "best store", "store ranking", "which store", "top seller", "leading store", "leading shop"), "🏪 Top Stores"),
+    (("seller store", "top store", "best store", "store ranking", "which store", "top seller", "leading store", "leading shop", "who sold", "stores by items sold"), "🏪 Top Stores"),
     (("top", "best", "selling", "popular"), "🏆 Top Performers"),
     (("customer", "spending", "purchase"), "👥 Customer Insights"),
     (("inventory", "stock"), "📦 Inventory"),
@@ -63,6 +63,12 @@ def analyze(question: str, exec_result: ExecutionResult, chart_type: str) -> Ana
 
 def _detect_title(question: str) -> str:
     q = (question or "").lower()
+    if any(k in q for k in (
+        "last order", "latest order", "last purchase", "latest purchase",
+        "order detail", "order details", "purchase detail", "purchase details",
+        "items inside order", "items in order", "items of order",
+    )):
+        return "🧾 Orders"
     for keywords, title in _TITLE_KEYWORDS:
         if any(k in q for k in keywords):
             return title

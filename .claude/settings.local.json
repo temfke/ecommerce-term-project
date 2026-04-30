@@ -10,7 +10,13 @@
       "Bash(./.venv/Scripts/python.exe -c \"from app.graph import build_graph; build_graph\\(\\); print\\('graph builds OK'\\)\")",
       "Bash(./.venv/Scripts/python.exe -c ' *)",
       "Bash(./mvnw.cmd -q -DskipTests compile)",
-      "Bash(echo \"exit=$?\")"
+      "Bash(echo \"exit=$?\")",
+      "Bash(python -c \"from app.agents import guardrails, sql; from app.schema import ChatTurn; print\\('ok'\\)\")",
+      "Bash(.venv/Scripts/python.exe -c \"from app.agents import guardrails, sql; from app.schema import ChatTurn; print\\('ok'\\)\")",
+      "Bash(.venv/Scripts/python.exe -m tests.test_followup_and_roles)",
+      "Bash(.venv/Scripts/python.exe -m tests.test_sql_intents)",
+      "Bash(.venv/Scripts/python.exe -c ' *)",
+      "Bash(npx tsc *)"
     ]
   }
 }

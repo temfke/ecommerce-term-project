@@ -159,6 +159,16 @@ _PUBLIC_INFO_RE = re.compile(
     re.IGNORECASE,
 )
 
+_PUBLIC_STORE_CATALOG_RE = re.compile(
+    r"\b("
+    r"what\s+else\s+does\s+.+?\s+(?:store|shop|seller)?\s*sell"
+    r"|.+?\s+(?:store|shop|seller)?'?s?\s+categor(?:y|ies)"
+    r"|(?:best\s+seller\s+store|best-selling\s+store|best\s+store|top\s+seller\s+store|"
+    r"top-selling\s+store|leading\s+store)\b.*\b(?:in|for)\b.*\bcategor(?:y|ies)?"
+    r")\b",
+    re.IGNORECASE,
+)
+
 _PRIVATE_METRIC_RE = re.compile(
     r"\b("
     r"order|orders|purchase|purchases|bought|buy|sales?|sold|revenue|income"
@@ -186,6 +196,8 @@ def detect_public_info_query(question: str, role: str) -> bool:
     if role not in ("CORPORATE", "INDIVIDUAL"):
         return False
     q = question or ""
+    if _PUBLIC_STORE_CATALOG_RE.search(q):
+        return True
     if _SELF_REFERENCE_RE.search(q):
         return False
     if _PRIVATE_METRIC_RE.search(q):

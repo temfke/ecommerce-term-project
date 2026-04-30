@@ -42,7 +42,7 @@ public class ChatService {
 
         if (aiServiceClient.isEnabled()) {
             try {
-                return aiServiceClient.ask(request, currentUser, resolveStoreScope(currentUser));
+                return aiServiceClient.ask(request, currentUser, resolveStoreOwnerScope(currentUser));
             } catch (Exception e) {
                 // The AI service is the real answering path. If it's unreachable,
                 // be loud about it — silently returning a hardcoded "demo" card
@@ -193,6 +193,11 @@ public class ChatService {
         List<Store> stores = storeRepository.findByOwnerId(user.getId());
         if (stores.isEmpty()) return null;
         return stores.get(0).getId();
+    }
+
+    private Long resolveStoreOwnerScope(User user) {
+        if (user == null || user.getRole() != Role.CORPORATE) return null;
+        return user.getId();
     }
 
     private String scopeLabel(User user) {

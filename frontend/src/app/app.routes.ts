@@ -55,7 +55,7 @@ export const routes: Routes = [
       },
       {
         path: 'reviews',
-        canActivate: [roleGuard('ADMIN', 'CORPORATE')],
+        canActivate: [roleGuard('ADMIN', 'CORPORATE', 'INDIVIDUAL')],
         loadComponent: () => import('./features/reviews/reviews').then(m => m.Reviews)
       },
       {

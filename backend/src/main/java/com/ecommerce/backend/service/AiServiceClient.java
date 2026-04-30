@@ -37,12 +37,12 @@ public class AiServiceClient {
         return aiServiceUrl != null && !aiServiceUrl.isBlank();
     }
 
-    public ChatResponse ask(ChatRequest req, User user, Long scopedStoreId) throws Exception {
+    public ChatResponse ask(ChatRequest req, User user, Long storeOwnerId) throws Exception {
         AiPayload payload = new AiPayload(
                 req.getQuestion(),
                 user.getId(),
                 user.getRole().name(),
-                scopedStoreId,
+                storeOwnerId,
                 user.getFirstName(),
                 req.getHistory() == null ? List.of() : req.getHistory().stream()
                         .map(t -> new AiTurn(t.getRole(), t.getContent()))

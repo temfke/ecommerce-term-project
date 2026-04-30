@@ -10,6 +10,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from app.agents.sql import generate_sql
 from app.sanitizer import sanitize
 
 
@@ -117,6 +118,36 @@ def run():
             print(f"        sql={result.sql}")
             print(f"        reason={result.reason}")
             print(f"        wanted to find: {needle!r}")
+            failed += 1
+
+    nested_cases = [
+        (
+            "INDIVIDUAL: last purchase percentage scopes only nested orders",
+            "What's the percentage of my last purchase in total value of my last 10 purchases?",
+            2,
+        ),
+        (
+            "INDIVIDUAL: last purchase details scopes only the derived last order",
+            "last purchase details",
+            1,
+        ),
+    ]
+
+    for label, question, expected_scope_count in nested_cases:
+        print(f"\n[{label}]")
+        raw_sql = generate_sql(None, question, "INDIVIDUAL")
+        result = sanitize(raw_sql, "INDIVIDUAL", 42)
+        text = result.sql or ""
+        actual_scope_count = text.count("orders.user_id = 42")
+        invalid_outer_scope = ") AS o\nWHERE\n  orders.user_id = 42" in text or ") AS last10\nWHERE" in text
+        if result.ok and actual_scope_count == expected_scope_count and not invalid_outer_scope:
+            print("  PASS  (ok)")
+            print(f"        -> {text.replace(chr(10), ' ')[:120]}")
+            passed += 1
+        else:
+            print(f"  FAIL  ok={result.ok} scope_count={actual_scope_count}")
+            print(f"        sql={result.sql}")
+            print(f"        reason={result.reason}")
             failed += 1
 
     print(f"\n{passed} passed, {failed} failed")

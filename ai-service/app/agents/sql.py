@@ -29,7 +29,138 @@ _STORE_SALES_ALT_RE = re.compile(
     r"\b(?P<store>[a-z0-9][\w '&.-]{1,80}?)\s+(?:sales|orders)\s+(?:count|total|number)\??$",
     re.IGNORECASE,
 )
+_STORE_UNITS_RE = re.compile(
+    r"\b("
+    r"who\s+sold\s+(?:the\s+)?most\s+(?:items|products|units)?"
+    r"|which\s+(?:store|seller|shop)\s+sold\s+(?:the\s+)?most\s+(?:items|products|units)?"
+    r"|top\s+\d{1,2}\s+(?:stores|sellers|shops)\s+by\s+(?:items|products|units)\s+sold"
+    r"|(?:top|best)\s+(?:store|seller|shop)\s+by\s+(?:items|products|units)\s+sold"
+    r"|(?:top|best)\s+(?:item-selling|product-selling)\s+(?:store|seller|shop)"
+    r")\b",
+    re.IGNORECASE,
+)
 _TOP_N_RE = re.compile(r"\btop\s+(\d{1,2})\b", re.IGNORECASE)
+_ORDER_ID_RE = re.compile(r"\b(?:order(?:\s+id)?|id)\s*(?:#|with\s+id\s+|id\s*)?(\d{2,})\b", re.IGNORECASE)
+_LAST_PURCHASE_PERCENT_RE = re.compile(
+    # share/percentage of "this/my/last/etc. purchase" against a denominator
+    # phrase ("all purchases", "last 10 purchases", "past 20 orders", ...).
+    # Both halves are required so we don't match bare "what's the percentage"
+    # or "how many last 10 purchases" — must have both numerator and denominator.
+    # The percent keyword is split out: `\b...\b` works around word chars
+    # (percentage/percent/share) but not around the literal `%`, so `what %`
+    # is matched without a trailing word boundary.
+    r"(?:\b(?:percentage|percent|share)\b|what\s*%|%\s*of)"
+    r".*\b(?:this|my|the|last|latest|most\s+recent)\s+(?:purchase|order)\b"
+    r".*\b(?:all|every|total|(?:last|recent|past)\s+\d{1,3})\s+(?:purchases?|orders?)\b",
+    re.IGNORECASE,
+)
+
+# Extract "last N" / "recent N" / "past N" purchases-or-orders from the denominator phrase.
+_DENOM_LAST_N_RE = re.compile(
+    r"\b(?:last|recent|past)\s+(\d{1,3})\s+(?:purchases?|orders?)\b",
+    re.IGNORECASE,
+)
+
+# Matches "all purchases", "every order", "total purchases" — the unbounded denominator.
+_DENOM_ALL_RE = re.compile(
+    r"\b(?:all|every|total)\s+(?:purchases?|orders?)\b",
+    re.IGNORECASE,
+)
+_ORDER_DETAIL_RE = re.compile(
+    r"\b("
+    r"(?:last|latest|most\s+recent)\s+(?:purchase|order)\s+(?:detail|details|content|contents|items?)"
+    r"|(?:last|latest|most\s+recent)\s+(?:purchase|order)$"
+    r"|(?:amount|total).*(?:content|items?).*(?:last|latest|most\s+recent)\s+(?:purchase|order)"
+    r"|items?\s+(?:inside|in|of)\s+(?:the\s+)?(?:order|purchase)"
+    r"|(?:order|purchase)\s+(?:detail|details|content|contents|items?)"
+    # "last product purchased from my store" / "most recent item sold at my store"
+    # / "what was the last thing ordered" / "last item I bought" — same intent as
+    # "last order details", phrased from the store owner's or buyer's POV.
+    # The optional `\w+` slot allows a pronoun/helper verb ("I", "we", "was")
+    # between the noun and the action verb.
+    r"|(?:last|latest|most\s+recent)\s+(?:product|item|thing)"
+    r"(?:\s+\w+){0,3}\s+(?:purchased|bought|sold|ordered)"
+    r")\b",
+    re.IGNORECASE,
+)
+_RIVAL_RE = re.compile(r"\b(rival|rivals|competitor|competitors|competition)\b", re.IGNORECASE)
+# Each pattern has a `<store>` named capture. To avoid greedy false positives
+# ("Best seller store in electronics category" → fake store="Best in
+# electronics"), every pattern requires EITHER an explicit anchor ("who is/are",
+# "what are/is", "what else does") OR a marker after the captured name (store
+# /shop/seller tag, or apostrophe-s possessive).
+
+# "Who is X[ store]['s] rival[s]" — anchored, so name marker is optional.
+_STORE_RIVAL_ANCHORED_RE = re.compile(
+    r"\bwho\s+(?:is|are)\s+(?:the\s+)?"
+    r"(?P<store>[a-z0-9][\w '&.-]{1,80}?)"
+    r"(?:\s+(?:store|shop|seller))?(?:'s|')?\s+(?:rival|competitor)s?\b",
+    re.IGNORECASE,
+)
+# "X['s|store's] rivals" — inline; possessive or store tag REQUIRED.
+_STORE_RIVAL_INLINE_RE = re.compile(
+    r"(?P<store>[a-z0-9][\w '&.-]{1,80}?)"
+    r"(?:\s+(?:store|shop|seller)(?:'s|')?|(?:'s|'))"
+    r"\s+(?:rival|competitor)s?\b",
+    re.IGNORECASE,
+)
+# "rivals of Aegean Outfitters" / "competitors for Bursa Boots".
+_RIVAL_OF_STORE_RE = re.compile(
+    r"\b(?:rival|competitor)s?\s+(?:of|for)\s+(?:the\s+)?"
+    r"(?P<store>[a-z0-9][\w '&.-]{1,80}?)\s*[?.!]*$",
+    re.IGNORECASE,
+)
+# "what are X[ store]['s] categories" — anchored.
+_STORE_CATEGORIES_ANCHORED_RE = re.compile(
+    r"\bwhat\s+(?:are|is)\s+(?:the\s+)?"
+    r"(?P<store>[a-z0-9][\w '&.-]{1,80}?)"
+    r"(?:\s+(?:store|shop|seller))?(?:'s|')?\s+(?:categories|category)\b",
+    re.IGNORECASE,
+)
+# "X['s|store's] categories" — inline; possessive or store tag REQUIRED so we
+# don't capture "in electronics category" → "in electronics".
+_STORE_CATEGORIES_INLINE_RE = re.compile(
+    r"(?P<store>[a-z0-9][\w '&.-]{1,80}?)"
+    r"(?:\s+(?:store|shop|seller)(?:'s|')?|(?:'s|'))"
+    r"\s+(?:categories|category)\b",
+    re.IGNORECASE,
+)
+_WHAT_ELSE_STORE_SELLS_RE = re.compile(
+    r"\bwhat\s+else\s+does\s+"
+    r"(?:(?:the\s+)?(?:store|shop|seller)\s+)?"
+    r"(?P<store>[a-z0-9][\w '&.-]{1,80}?)"
+    r"(?:\s+(?:store|shop|seller))?\s+sell\b",
+    re.IGNORECASE,
+)
+_BEST_STORE_CATEGORY_RE = re.compile(
+    r"\b(?:best\s+seller\s+store|best-selling\s+store|best\s+store|top\s+seller\s+store|"
+    r"top-selling\s+store|leading\s+store)\b"
+    r".*?\b(?:in|for)\s+(?:the\s+)?(?P<category>[a-z0-9][\w '&.-]{1,80}?)"
+    r"(?:\s+category)?\s*[?.!]*$",
+    re.IGNORECASE,
+)
+_EXPENSE_CATEGORY_RE = re.compile(
+    r"\b(?:which|what)\s+categor(?:y|ies)\b.*\b(?:expense|expenses|spend|spent|bought|purchase|purchases)\b"
+    r"|(?:expense|expenses|spend|spent)\b.*\bcategor(?:y|ies)\b",
+    re.IGNORECASE,
+)
+_LAST_10_CATEGORY_VIS_RE = re.compile(
+    r"\b(?:categoric|categorical|category)\s+(?:visualization|visualisation|chart|graph|breakdown)\b"
+    r".*\b(?:last|recent|past)\s+(?P<n>\d{1,3})\s+(?:purchase|purchases|order|orders)\b"
+    r"|\b(?:last|recent|past)\s+(?P<n2>\d{1,3})\s+(?:purchase|purchases|order|orders)\b"
+    r".*\b(?:categoric|categorical|category)\s+(?:visualization|visualisation|chart|graph|breakdown)\b",
+    re.IGNORECASE,
+)
+_PROFIT_PRODUCT_RE = re.compile(
+    r"\b(?:which|what)\s+(?:product|item)\b.*\b(?:profit|revenue|money|income)\b.*\b(?:year|annual|12\s+months)\b"
+    r"|\b(?:profit|revenue|money|income)\b.*\b(?:product|item)\b.*\b(?:year|annual|12\s+months)\b",
+    re.IGNORECASE,
+)
+_PRODUCT_REVENUE_GRAPH_RE = re.compile(
+    r"\b(?:show|display|graph|chart|visuali[sz]e)\b.*\b(?:product|products|item|items)\b.*\b(?:revenue|profit|money|income)\b"
+    r"|\b(?:product|products|item|items)\b.*\b(?:revenue|profit|money|income)\b.*\b(?:graph|chart|visuali[sz]e|breakdown)\b",
+    re.IGNORECASE,
+)
 
 
 def _esc(s: str) -> str:
@@ -58,9 +189,126 @@ def _store_name_from_sales_question(question: str) -> Optional[str]:
     return None
 
 
+def _order_id_from_question(question: str) -> Optional[int]:
+    match = _ORDER_ID_RE.search(question)
+    if not match:
+        return None
+    return int(match.group(1))
+
+
+def _clean_named_entity(value: str) -> Optional[str]:
+    # Strip both possessive/role tokens AND leading question-words so that
+    # a too-greedy regex capture like "What are my rival" or "Which store's"
+    # cleans down to nothing instead of leaving "What are" / "Which" as a
+    # bogus store name. Real store names don't begin with these tokens.
+    value = re.sub(
+        r"\b(what|where|which|when|how|who|are|is|do|does|did"
+        r"|the|a|an|store|shop|seller|rival|competitor|my|your|our)\b",
+        " ", value, flags=re.IGNORECASE,
+    )
+    value = re.sub(r"\s+", " ", value).strip(" ?.,'\"")
+    if not value:
+        return None
+    if value.lower() in {"store", "shop", "seller", "rival", "competitor", "my rival"}:
+        return None
+    return value
+
+
+def _store_name_from_rival_question(question: str) -> Optional[str]:
+    """Extract the store the user is asking about rivals for.
+
+    Anchored "who is/are X['s] rival" first (allows bare names),
+    then inline "X['s|store's] rivals" (requires marker), then
+    "rivals of X". Names that clean to an empty/discarded entity are
+    treated as "no specific store" so the caller falls back to the generic
+    rivals-for-top-items branch."""
+    patterns = (
+        _STORE_RIVAL_ANCHORED_RE,
+        _STORE_RIVAL_INLINE_RE,
+        _RIVAL_OF_STORE_RE,
+    )
+    for pattern in patterns:
+        match = pattern.search(question.strip())
+        if not match:
+            continue
+        store = _clean_named_entity(match.group("store"))
+        if store:
+            return store
+    return None
+
+
+def _store_name_from_category_question(question: str) -> Optional[str]:
+    patterns = (
+        _WHAT_ELSE_STORE_SELLS_RE,
+        _STORE_CATEGORIES_ANCHORED_RE,
+        _STORE_CATEGORIES_INLINE_RE,
+    )
+    for pattern in patterns:
+        match = pattern.search(question.strip())
+        if match:
+            store = _clean_named_entity(match.group("store"))
+            if store:
+                return store
+    return None
+
+
+def _category_from_best_store_question(question: str) -> Optional[str]:
+    match = _BEST_STORE_CATEGORY_RE.search(question.strip())
+    if not match:
+        return None
+    return _clean_named_entity(match.group("category"))
+
+
+def _last_n_from_category_visualization(question: str, default: int = 10) -> int:
+    match = _LAST_10_CATEGORY_VIS_RE.search(question)
+    if not match:
+        return default
+    raw = match.group("n") or match.group("n2")
+    if not raw:
+        return default
+    return max(1, min(int(raw), 100))
+
+
+def _history_text(history: Optional[List[ChatTurn]]) -> str:
+    if not history:
+        return ""
+    return " ".join((turn.content or "") for turn in history[-4:]).lower()
+
+
+def _is_product_revenue_followup(question: str, history: Optional[List[ChatTurn]]) -> bool:
+    q = (question or "").strip().lower()
+    if not re.search(r"\b(show|graph|chart|visuali[sz]e|display)\b", q):
+        return False
+    if not re.search(r"\b(it|that|this|revenue|profit|money|item|product|items|products)\b", q):
+        return False
+    h = _history_text(history)
+    return bool(
+        re.search(r"\b(product|item|products|items)\b", h)
+        and re.search(r"\b(revenue|profit|money|income)\b", h)
+    )
+
+
 def _is_high_confidence_stub_intent(question: str) -> bool:
     lower = question.lower()
+    if _RIVAL_RE.search(question):
+        return True
+    if _store_name_from_category_question(question):
+        return True
+    if _category_from_best_store_question(question):
+        return True
+    if _EXPENSE_CATEGORY_RE.search(question):
+        return True
+    if _LAST_10_CATEGORY_VIS_RE.search(question):
+        return True
+    if _PRODUCT_REVENUE_GRAPH_RE.search(question) or _PROFIT_PRODUCT_RE.search(question):
+        return True
+    if _LAST_PURCHASE_PERCENT_RE.search(question):
+        return True
+    if _ORDER_DETAIL_RE.search(question) or _order_id_from_question(question) is not None:
+        return True
     if _store_name_from_sales_question(question):
+        return True
+    if _STORE_UNITS_RE.search(question):
         return True
     if (
         any(k in lower for k in ("top", "most sold", "best selling", "best-selling"))
@@ -171,6 +419,21 @@ the schema below. Strict rules:
 14. SIMPLE MOST-SOLD ITEM - questions like "what is the most sold item" ask for
     exactly one item unless the user says "top N". Return product/item name and
     SUM(order_items.quantity) as units, ordered descending.
+15. SELLER / STORE BY UNITS SOLD - questions like "who sold the most items" or
+    "which store sold the most products" ask for a STORE/SELLER, not an item.
+    Return store name and SUM(order_items.quantity) as units, ordered
+    descending. For admin/corporate, this can be computed through
+    order_items -> products -> stores; for individual users, use orders so the
+    sanitizer can scope the result to that user's purchases.
+16. LAST PURCHASE / ORDER DETAILS - questions like "last purchase details",
+    "last order detail", "the items inside order with id 430967", or "amount
+    and content of my last purchase" ask for the order and every item in it.
+    Return one row per item with order_id, status, grand_total, created_at,
+    product, quantity, price, and line_total. Always include `orders` so the
+    sanitizer can enforce account/store ownership.
+17. LAST PURCHASE PERCENTAGE - questions like "What's the percentage of my last
+    purchase in total value of my last 10 purchases?" ask for one percentage.
+    Return last_purchase, last_10_total, and percentage.
 
 Schema:
 """
@@ -180,7 +443,106 @@ Schema:
 SCOPE_HINT = {"ADMIN": "", "CORPORATE": "", "INDIVIDUAL": ""}
 
 
-def generate_sql_stub(question: str, role: Role) -> str:
+def _top_product_names_subquery(source_store_name: Optional[str] = None) -> str:
+    store_join = ""
+    store_where = ""
+    if source_store_name:
+        store_join = "JOIN stores source_s ON source_s.id = p.store_id\n"
+        store_where = f"WHERE LOWER(source_s.name) LIKE LOWER('%{_esc(source_store_name)}%')\n"
+    return (
+        "SELECT top_products.product_name\n"
+        "FROM (\n"
+        "  SELECT LOWER(p.name) AS product_name, SUM(oi.quantity) AS units\n"
+        "  FROM order_items oi\n"
+        "  JOIN orders o ON o.id = oi.order_id\n"
+        "  JOIN products p ON p.id = oi.product_id\n"
+        f"  {store_join}"
+        f"  {store_where}"
+        "  GROUP BY p.id, p.name\n"
+        "  ORDER BY units DESC\n"
+        "  LIMIT 5\n"
+        ") top_products"
+    )
+
+
+def _rivals_for_top_items_sql(role: Role, source_store_name: Optional[str] = None) -> str:
+    exclude = ""
+    if source_store_name:
+        exclude = f"AND LOWER(rival_s.name) NOT LIKE LOWER('%{_esc(source_store_name)}%')\n"
+    elif role == "CORPORATE":
+        exclude = "AND rival_s.owner_id <> :scoped_store_id\n"
+    return (
+        "SELECT rival_s.name AS rival_store, "
+        "COUNT(DISTINCT rival_p.name) AS matching_items, "
+        "ROUND(AVG(r.star_rating), 2) AS avg_rating\n"
+        "FROM products rival_p\n"
+        "JOIN stores rival_s ON rival_s.id = rival_p.store_id\n"
+        "JOIN reviews r ON r.product_id = rival_p.id\n"
+        "WHERE LOWER(rival_p.name) IN (\n"
+        f"{_top_product_names_subquery(source_store_name)}\n"
+        ")\n"
+        f"{exclude}"
+        "GROUP BY rival_s.id, rival_s.name\n"
+        "HAVING AVG(r.star_rating) >= 4\n"
+        "ORDER BY matching_items DESC, avg_rating DESC\n"
+        "LIMIT 5;"
+    )
+
+
+def _store_rival_by_categories_sql(store_name: str) -> str:
+    return (
+        "SELECT rival_s.name AS rival_store, "
+        "COUNT(DISTINCT rival_p.category_id) AS matching_categories, "
+        "ROUND(AVG(r.star_rating), 2) AS avg_rating\n"
+        "FROM products rival_p\n"
+        "JOIN stores rival_s ON rival_s.id = rival_p.store_id\n"
+        "JOIN reviews r ON r.product_id = rival_p.id\n"
+        "WHERE rival_p.category_id IN (\n"
+        "  SELECT DISTINCT source_p.category_id\n"
+        "  FROM products source_p\n"
+        "  JOIN stores source_s ON source_s.id = source_p.store_id\n"
+        f"  WHERE LOWER(source_s.name) LIKE LOWER('%{_esc(store_name)}%')\n"
+        ")\n"
+        f"AND LOWER(rival_s.name) NOT LIKE LOWER('%{_esc(store_name)}%')\n"
+        "GROUP BY rival_s.id, rival_s.name\n"
+        "HAVING AVG(r.star_rating) >= 4\n"
+        "ORDER BY matching_categories DESC, avg_rating DESC\n"
+        "LIMIT 5;"
+    )
+
+
+def _rival_categories_sql(role: Role) -> str:
+    exclude = "AND rival_s.owner_id <> :scoped_store_id\n" if role == "CORPORATE" else ""
+    return (
+        "SELECT rival_s.name AS store, c.name AS category, COUNT(DISTINCT rival_p.id) AS products\n"
+        "FROM products rival_p\n"
+        "JOIN stores rival_s ON rival_s.id = rival_p.store_id\n"
+        "JOIN categories c ON c.id = rival_p.category_id\n"
+        "WHERE LOWER(rival_p.name) IN (\n"
+        f"{_top_product_names_subquery()}\n"
+        ")\n"
+        f"{exclude}"
+        "GROUP BY rival_s.id, rival_s.name, c.id, c.name\n"
+        "ORDER BY rival_s.name, products DESC, c.name\n"
+        "LIMIT 100;"
+    )
+
+
+def _store_categories_listing_sql(store_name: str) -> str:
+    """Catalog of categories carried by a single named store, with product counts."""
+    return (
+        "SELECT s.name AS store, c.name AS category, COUNT(p.id) AS products\n"
+        "FROM stores s\n"
+        "JOIN products p ON p.store_id = s.id\n"
+        "JOIN categories c ON c.id = p.category_id\n"
+        f"WHERE LOWER(s.name) LIKE LOWER('%{_esc(store_name)}%')\n"
+        "GROUP BY s.id, s.name, c.id, c.name\n"
+        "ORDER BY products DESC, c.name\n"
+        "LIMIT 100;"
+    )
+
+
+def generate_sql_stub(question: str, role: Role, history: Optional[List[ChatTurn]] = None) -> str:
     """Deterministic stub used when no LLM is configured.
 
     Note: no scope clauses here on purpose — the sanitizer always re-injects
@@ -189,6 +551,193 @@ def generate_sql_stub(question: str, role: Role) -> str:
     """
     lower = question.lower()
     limit = _top_limit(question)
+
+    if _RIVAL_RE.search(question):
+        store_name = _store_name_from_rival_question(question)
+        if store_name:
+            # "what are my rival X's categories" → user wants X's catalog,
+            # not the platform-wide rival aggregate.
+            if "categor" in lower:
+                return _store_categories_listing_sql(store_name)
+            return _store_rival_by_categories_sql(store_name)
+        if "categor" in lower:
+            # No specific rival named, but the categories question still
+            # might name a store via the categories pattern.
+            named = _store_name_from_category_question(question)
+            if named:
+                return _store_categories_listing_sql(named)
+            return _rival_categories_sql(role)
+        return _rivals_for_top_items_sql(role)
+
+    store_for_categories = _store_name_from_category_question(question)
+    if store_for_categories:
+        return _store_categories_listing_sql(store_for_categories)
+
+    best_category = _category_from_best_store_question(question)
+    if best_category:
+        if role == "ADMIN":
+            return (
+                "SELECT s.name AS store, SUM(oi.quantity) AS units, "
+                "COALESCE(ROUND(AVG(pr.avg_rating), 2), 0) AS avg_rating\n"
+                "FROM order_items oi\n"
+                "JOIN products p ON p.id = oi.product_id\n"
+                "JOIN stores s ON s.id = p.store_id\n"
+                "JOIN categories c ON c.id = p.category_id\n"
+                "LEFT JOIN (\n"
+                "  SELECT product_id, AVG(star_rating) AS avg_rating\n"
+                "  FROM reviews\n"
+                "  GROUP BY product_id\n"
+                ") pr ON pr.product_id = p.id\n"
+                f"WHERE LOWER(c.name) LIKE LOWER('%{_esc(best_category)}%')\n"
+                "GROUP BY s.id, s.name\n"
+                "ORDER BY units DESC, avg_rating DESC\n"
+                "LIMIT 1;"
+            )
+        return (
+            "SELECT s.name AS store, COUNT(p.id) AS product_count, "
+            "COALESCE(ROUND(AVG(r.star_rating), 2), 0) AS avg_rating\n"
+            "FROM stores s\n"
+            "JOIN products p ON p.store_id = s.id\n"
+            "JOIN categories c ON c.id = p.category_id\n"
+            "LEFT JOIN reviews r ON r.product_id = p.id\n"
+            f"WHERE LOWER(c.name) LIKE LOWER('%{_esc(best_category)}%') AND p.active = TRUE\n"
+            "GROUP BY s.id, s.name\n"
+            "ORDER BY avg_rating DESC, product_count DESC\n"
+            "LIMIT 1;"
+        )
+
+    if _LAST_10_CATEGORY_VIS_RE.search(question):
+        n = _last_n_from_category_visualization(question)
+        return (
+            "SELECT c.name AS category, SUM(oi.price * oi.quantity) AS spent\n"
+            "FROM (\n"
+            "  SELECT id\n"
+            "  FROM orders\n"
+            "  ORDER BY created_at DESC\n"
+            f"  LIMIT {n}\n"
+            ") recent_orders\n"
+            "JOIN order_items oi ON oi.order_id = recent_orders.id\n"
+            "JOIN products p ON p.id = oi.product_id\n"
+            "JOIN categories c ON c.id = p.category_id\n"
+            "GROUP BY c.id, c.name\n"
+            "ORDER BY spent DESC\n"
+            "LIMIT 100;"
+        )
+
+    if _EXPENSE_CATEGORY_RE.search(question):
+        return (
+            "SELECT c.name AS category, SUM(oi.price * oi.quantity) AS spent\n"
+            "FROM orders o\n"
+            "JOIN order_items oi ON oi.order_id = o.id\n"
+            "JOIN products p ON p.id = oi.product_id\n"
+            "JOIN categories c ON c.id = p.category_id\n"
+            "WHERE o.created_at >= DATE_FORMAT(NOW(), '%Y-%m-01')\n"
+            "GROUP BY c.id, c.name\n"
+            "ORDER BY spent DESC\n"
+            "LIMIT 1;"
+        )
+
+    if _PRODUCT_REVENUE_GRAPH_RE.search(question) or _is_product_revenue_followup(question, history):
+        return (
+            "SELECT p.name AS product, SUM(oi.price * oi.quantity) AS revenue\n"
+            "FROM orders o\n"
+            "JOIN order_items oi ON oi.order_id = o.id\n"
+            "JOIN products p ON p.id = oi.product_id\n"
+            "WHERE o.created_at >= NOW() - INTERVAL 1 YEAR\n"
+            "GROUP BY p.id, p.name\n"
+            "ORDER BY revenue DESC\n"
+            "LIMIT 100;"
+        )
+
+    if _PROFIT_PRODUCT_RE.search(question):
+        return (
+            "SELECT p.name AS product, SUM(oi.price * oi.quantity) AS revenue\n"
+            "FROM orders o\n"
+            "JOIN order_items oi ON oi.order_id = o.id\n"
+            "JOIN products p ON p.id = oi.product_id\n"
+            "WHERE o.created_at >= NOW() - INTERVAL 1 YEAR\n"
+            "GROUP BY p.id, p.name\n"
+            "ORDER BY revenue DESC\n"
+            "LIMIT 1;"
+        )
+
+    if _LAST_PURCHASE_PERCENT_RE.search(question):
+        n_match = _DENOM_LAST_N_RE.search(question)
+        if n_match:
+            n = max(1, min(int(n_match.group(1)), 1000))
+            denom_alias = f"last_{n}_total"
+            denom_subquery = (
+                f"  SELECT SUM(recent_orders.grand_total) AS {denom_alias}\n"
+                "  FROM (\n"
+                "    SELECT grand_total\n"
+                "    FROM orders\n"
+                "    ORDER BY created_at DESC\n"
+                f"    LIMIT {n}\n"
+                "  ) recent_orders"
+            )
+        elif _DENOM_ALL_RE.search(question):
+            denom_alias = "all_total"
+            denom_subquery = (
+                f"  SELECT SUM(grand_total) AS {denom_alias}\n"
+                "  FROM orders"
+            )
+        else:
+            # Regex required a denominator phrase, so this branch is only
+            # reachable if the future regex relaxes — fall back to "last 10"
+            # to preserve the historical default rather than crash.
+            denom_alias = "last_10_total"
+            denom_subquery = (
+                f"  SELECT SUM(recent_orders.grand_total) AS {denom_alias}\n"
+                "  FROM (\n"
+                "    SELECT grand_total\n"
+                "    FROM orders\n"
+                "    ORDER BY created_at DESC\n"
+                "    LIMIT 10\n"
+                "  ) recent_orders"
+            )
+        return (
+            "SELECT last_order.grand_total AS last_purchase, "
+            f"denom.{denom_alias} AS {denom_alias}, "
+            f"ROUND((last_order.grand_total / NULLIF(denom.{denom_alias}, 0)) * 100, 2) AS percentage\n"
+            "FROM (\n"
+            "  SELECT id, grand_total, created_at\n"
+            "  FROM orders\n"
+            "  ORDER BY created_at DESC\n"
+            "  LIMIT 1\n"
+            ") last_order\n"
+            "CROSS JOIN (\n"
+            f"{denom_subquery}\n"
+            ") denom;"
+        )
+
+    order_id = _order_id_from_question(question)
+    if order_id is not None:
+        return (
+            "SELECT o.id AS order_id, o.status, o.grand_total, o.created_at, "
+            "p.name AS product, oi.quantity, oi.price, "
+            "(oi.quantity * oi.price) AS line_total\n"
+            "FROM orders o\n"
+            "JOIN order_items oi ON oi.order_id = o.id\n"
+            "JOIN products p ON p.id = oi.product_id\n"
+            f"WHERE o.id = {order_id}\n"
+            "ORDER BY p.name LIMIT 100;"
+        )
+
+    if _ORDER_DETAIL_RE.search(question):
+        return (
+            "SELECT o.id AS order_id, o.status, o.grand_total, o.created_at, "
+            "p.name AS product, oi.quantity, oi.price, "
+            "(oi.quantity * oi.price) AS line_total\n"
+            "FROM (\n"
+            "  SELECT id, status, grand_total, created_at\n"
+            "  FROM orders\n"
+            "  ORDER BY created_at DESC\n"
+            "  LIMIT 1\n"
+            ") o\n"
+            "JOIN order_items oi ON oi.order_id = o.id\n"
+            "JOIN products p ON p.id = oi.product_id\n"
+            "ORDER BY p.name LIMIT 100;"
+        )
 
     store_name = _store_name_from_sales_question(question)
     if store_name:
@@ -200,6 +749,28 @@ def generate_sql_stub(question: str, role: Role) -> str:
             f"WHERE LOWER(s.name) LIKE LOWER('%{_esc(store_name)}%')\n"
             "GROUP BY s.id, s.name\n"
             "ORDER BY sales_count DESC LIMIT 5;"
+        )
+
+    if _STORE_UNITS_RE.search(question):
+        store_limit = _top_limit(question, default=1)
+        if role == "INDIVIDUAL":
+            return (
+                "SELECT s.name AS store, SUM(oi.quantity) AS units\n"
+                "FROM orders o\n"
+                "JOIN order_items oi ON oi.order_id = o.id\n"
+                "JOIN stores s ON s.id = o.store_id\n"
+                f"GROUP BY s.id, s.name ORDER BY units DESC LIMIT {store_limit};"
+            )
+        return (
+            "SELECT s.name AS store, SUM(product_units.units) AS units\n"
+            "FROM (\n"
+            "  SELECT product_id, SUM(quantity) AS units\n"
+            "  FROM order_items\n"
+            "  GROUP BY product_id\n"
+            ") product_units\n"
+            "JOIN products p ON p.id = product_units.product_id\n"
+            "JOIN stores s ON s.id = p.store_id\n"
+            f"GROUP BY s.id, s.name ORDER BY units DESC LIMIT {store_limit};"
         )
 
     if (
@@ -378,11 +949,11 @@ def generate_sql(
     role: Role,
     history: Optional[List[ChatTurn]] = None,
 ) -> str:
-    if _is_high_confidence_stub_intent(question):
-        return generate_sql_stub(question, role)
+    if _is_high_confidence_stub_intent(question) or _is_product_revenue_followup(question, history):
+        return generate_sql_stub(question, role, history)
     if llm is None:
-        return generate_sql_stub(question, role)
+        return generate_sql_stub(question, role, history)
     try:
         return generate_sql_with_llm(llm, question, role, history)
     except Exception:
-        return generate_sql_stub(question, role)
+        return generate_sql_stub(question, role, history)

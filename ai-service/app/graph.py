@@ -4,6 +4,7 @@ In step 2 the graph stops after SQL generation — it returns the SQL preview to
 the caller without executing it. Steps 4-6 will add: sanitizer, executor, analysis,
 visualization.
 """
+import re
 from typing import Optional, TypedDict
 
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -84,12 +85,17 @@ def node_blocked(state: GraphState) -> GraphState:
 
 
 def node_sql_injection(state: GraphState) -> GraphState:
-    state["response"] = _guardrail_response(
-        "That message looks like an attempt to run raw SQL. The chatbot only "
-        "executes safe, system-generated read-only queries — even for admins.",
-        type_="SQL Injection Attempt",
-        trigger=f'"{state["trigger"]}"',
-        action="SQL generation halted",
+    state["response"] = ChatResponse(
+        status="BLOCKED",
+        narrative=(
+            "That message looks like an attempt to run raw SQL. The chatbot only "
+            "executes safe, system-generated read-only queries — even for admins."
+        ),
+        guardrail=Guardrail(
+            type="SQL Injection Attempt",
+            trigger=f'"{state["trigger"]}"',
+            action="SQL generation halted",
+        ),
     )
     return state
 
@@ -136,10 +142,43 @@ def _last_assistant_turn(history) -> str:
     return ""
 
 
+def _methodology_from_context(question: str, previous_answer: str) -> Optional[str]:
+    q = (question or "").lower()
+    prev = (previous_answer or "").lower()
+    combined = f"{q} {prev}"
+
+    if "rival" in combined or "competitor" in combined:
+        return (
+            "I took your five best-selling items, looked for other stores with matching items or matching product categories, "
+            "then ranked those stores by their average rating on those matching products."
+        )
+    if "percentage" in combined or "%" in combined:
+        return (
+            "I divided the value of the last purchase by the total value of the comparison set, such as all purchases or the last N purchases, "
+            "then multiplied the result by 100."
+        )
+    if "revenue" in combined or "profit" in combined or "money" in combined:
+        return (
+            "I grouped the sold order items by product, calculated each product's revenue as price times quantity, "
+            "summed those values for the selected year, and picked the highest total."
+        )
+    if "category" in combined or "categories" in combined or "expense" in combined or "spent" in combined:
+        return (
+            "I checked your purchased order items, matched each product to its category, summed the spending per category, "
+            "and sorted the categories from highest to lowest."
+        )
+    if "last purchased" in combined or "last purchase" in combined or "last order" in combined:
+        return (
+            "I sorted your eligible orders by purchase time from newest to oldest, selected the latest order, "
+            "and listed the items and total from that order."
+        )
+    return None
+
+
 def node_explanation(state: GraphState) -> GraphState:
     prev = _last_assistant_turn(state.get("history") or [])
-    narrative = _EXPLANATION_FALLBACK
-    if _LLM is not None and prev:
+    narrative = _methodology_from_context(state["question"], prev) or _EXPLANATION_FALLBACK
+    if _LLM is not None and prev and narrative == _EXPLANATION_FALLBACK:
         try:
             response = _LLM.invoke([
                 SystemMessage(content=_EXPLANATION_SYSTEM_PROMPT),
@@ -239,9 +278,14 @@ def node_execute(state: GraphState) -> GraphState:
 
 def node_execution_error(state: GraphState) -> GraphState:
     err = state["execution"].error or "Unknown database error"
+    timed_out = "timed out" in err.lower() or "lost connection" in err.lower()
     state["response"] = ChatResponse(
         status="BLOCKED",
         narrative=(
+            "I generated and sanitized the SQL, but the database query timed out "
+            "before MySQL returned an answer. Try narrowing the date range or "
+            "asking for a smaller ranking."
+            if timed_out else
             "I generated and sanitized the SQL, but the database refused to run it. "
             "This usually means the query asked for something that doesn't exist "
             "(missing table, column, or join condition)."
@@ -257,7 +301,8 @@ def node_execution_error(state: GraphState) -> GraphState:
 
 
 _DATE_LIKE_NAMES = {"day", "date", "month", "week", "year", "created_at", "ordered_at", "updated_at", "shipped_at"}
-_PIE_KEYWORDS = ("pie", "donut", "doughnut", "share", "split", "breakdown")
+_PIE_KEYWORDS = ("pie", "donut", "doughnut", "share", "split", "breakdown",
+                 "categoric", "categorical")
 
 
 def _detect_chart_type(columns: list[str], rows: list[dict], question: str = "") -> str:
@@ -311,8 +356,66 @@ def _display_money(value) -> str:
     return str(value)
 
 
+def _display_percent(value) -> str:
+    from decimal import Decimal
+    if value is None:
+        return "0%"
+    if isinstance(value, Decimal):
+        value = float(value)
+    if isinstance(value, (int, float)):
+        return f"{float(value):,.2f}%"
+    return f"{value}%"
+
+
+_DENOM_TOTAL_RE = re.compile(r"^(?:last_(\d+)|all)_total$")
+
+
+def _join_names(values: list[str]) -> str:
+    cleaned = [str(v) for v in values if str(v).strip()]
+    if not cleaned:
+        return ""
+    if len(cleaned) == 1:
+        return cleaned[0]
+    if len(cleaned) == 2:
+        return f"{cleaned[0]} and {cleaned[1]}"
+    return f"{', '.join(cleaned[:-1])}, and {cleaned[-1]}"
+
+
+def _percent_scope_phrase(denom_key: str) -> str:
+    """Translate the SQL alias chosen by the SQL agent into a human phrase
+    used in the narrative ("your last 10 purchases" / "all your purchases")."""
+    m = _DENOM_TOTAL_RE.match(denom_key)
+    if not m:
+        return denom_key.replace("_", " ")
+    n = m.group(1)
+    if n is None:
+        return "all your purchases"
+    return f"your last {n} purchases"
+
+
 def _simple_row_answer(row: dict) -> Optional[str]:
     cols = {str(k).lower(): k for k in row.keys()}
+
+    if "rival_store" in cols:
+        store = row[cols["rival_store"]]
+        return f"{store} is your closest rival."
+
+    if "last_purchase" in cols and "percentage" in cols:
+        # The SQL agent picks the denominator alias from the question
+        # ("last_10_total", "last_20_total", "all_total", ...). Find it
+        # generically so the narrative works for every variant.
+        denom_key = next(
+            (k for k in cols if k not in ("last_purchase", "percentage") and _DENOM_TOTAL_RE.match(k)),
+            None,
+        )
+        if denom_key is not None:
+            scope_phrase = _percent_scope_phrase(denom_key)
+            return (
+                "Your last purchase was "
+                f"{_display_money(row[cols['last_purchase']])}. The total value of "
+                f"{scope_phrase} was {_display_money(row[cols[denom_key]])}, so your last purchase made up "
+                f"{_display_percent(row[cols['percentage']])} of that total."
+            )
 
     if "store" in cols and "sales_count" in cols:
         store = row[cols["store"]]
@@ -324,7 +427,30 @@ def _simple_row_answer(row: dict) -> Optional[str]:
             return f"{store} made {sales} {sale_word} with {_display_money(revenue)} in revenue."
         return f"{store} made {sales} {sale_word}."
 
+    if "store" in cols and ("product_count" in cols or "avg_rating" in cols):
+        store = row[cols["store"]]
+        rating = row.get(cols.get("avg_rating")) if "avg_rating" in cols else None
+        if rating is not None:
+            return f"It is {store}, with an average rating of {_display_value(rating)}."
+        return f"It is {store}."
+
+    if "store" in cols and "units" in cols:
+        store = row[cols["store"]]
+        return f"{store} sold the most items with {_display_value(row[cols['units']])} units sold."
+
+    if "category" in cols and "spent" in cols:
+        return (
+            f"You bought from {row[cols['category']]} category the most this month, "
+            f"with {_display_money(row[cols['spent']])} spent."
+        )
+
     item_key = cols.get("product") or cols.get("item") or cols.get("name")
+    if item_key and "revenue" in cols:
+        return (
+            f"{row[item_key]} made you more revenue than the others, "
+            f"with {_display_money(row[cols['revenue']])} over the selected year."
+        )
+
     if item_key and "units" in cols:
         return f"The most sold item is {row[item_key]} with {_display_value(row[cols['units']])} units sold."
 
@@ -336,14 +462,114 @@ def _simple_row_answer(row: dict) -> Optional[str]:
     return None
 
 
+def _rivals_answer(exec_result: ExecutionResult) -> Optional[str]:
+    cols = {c.lower(): c for c in exec_result.columns}
+    store_key = cols.get("rival_store")
+    if not store_key:
+        return None
+    if not exec_result.rows:
+        return "You don't have any rivals."
+    names_list = [str(r.get(store_key)) for r in exec_result.rows]
+    names = _join_names(names_list)
+    if len(names_list) == 1:
+        return f"{names} is your rival."
+    return f"{names} are your rivals."
+
+
+def _store_categories_answer(exec_result: ExecutionResult, question: str) -> Optional[str]:
+    cols = {c.lower(): c for c in exec_result.columns}
+    if "store" not in cols or "category" not in cols:
+        return None
+    if not exec_result.rows:
+        return "I couldn't find matching store categories."
+
+    grouped: dict[str, list[str]] = {}
+    for row in exec_result.rows:
+        store = str(row.get(cols["store"]))
+        category = str(row.get(cols["category"]))
+        if store and category and category not in grouped.setdefault(store, []):
+            grouped[store].append(category)
+
+    q = (question or "").lower()
+    parts = []
+    for store, categories in grouped.items():
+        joined = _join_names(categories)
+        if "what else" in q:
+            parts.append(f"{store} also sells {joined}.")
+        elif "rival" in q or "competitor" in q:
+            parts.append(f"Your rival {store}'s categories are {joined}.")
+        else:
+            parts.append(f"{store}'s categories are {joined}.")
+    return " ".join(parts)
+
+
+def _product_revenue_answer(exec_result: ExecutionResult) -> Optional[str]:
+    cols = {c.lower(): c for c in exec_result.columns}
+    product_key = cols.get("product") or cols.get("item") or cols.get("name")
+    if not product_key or "revenue" not in cols or not exec_result.rows:
+        return None
+    top = exec_result.rows[0]
+    return (
+        f"{top[product_key]} made you more revenue than the others, "
+        f"with {_display_money(top[cols['revenue']])} over the selected year."
+    )
+
+
+def _order_details_answer(exec_result: ExecutionResult) -> Optional[str]:
+    if not exec_result.rows:
+        return None
+    cols = {c.lower(): c for c in exec_result.columns}
+    required = {"order_id", "grand_total", "product"}
+    if not required.issubset(cols):
+        return None
+    first = exec_result.rows[0]
+    order_id = first.get(cols["order_id"])
+    total = first.get(cols["grand_total"])
+    status = first.get(cols["status"]) if "status" in cols else None
+    status_part = f" ({status})" if status else ""
+    products = []
+    for row in exec_result.rows:
+        name = row.get(cols["product"])
+        qty = row.get(cols["quantity"]) if "quantity" in cols else None
+        if qty in (None, 1):
+            products.append(str(name))
+        else:
+            products.append(f"{name} x{_display_value(qty)}")
+    product_text = _join_names(products)
+    return (
+        f"The last purchased item{'s' if exec_result.row_count != 1 else ''} "
+        f"{'are' if exec_result.row_count != 1 else 'is'} {product_text}. "
+        f"Order #{order_id}{status_part} totals {_display_money(total)}."
+    )
+
+
 def _format_narrative(state: GraphState, exec_result: ExecutionResult) -> str:
     scope = _scope_label(state["role"])
     if exec_result.row_count == 0:
+        rival_empty = _rivals_answer(exec_result)
+        if rival_empty:
+            return rival_empty
         return f"No matching data in your {scope}."
+
+    rivals = _rivals_answer(exec_result)
+    if rivals:
+        return rivals
+
+    categories = _store_categories_answer(exec_result, state.get("question", ""))
+    if categories:
+        return categories
+
+    product_revenue = _product_revenue_answer(exec_result)
+    if product_revenue:
+        return product_revenue
+
     if exec_result.row_count == 1:
         direct = _simple_row_answer(exec_result.rows[0])
         if direct:
             return direct
+    order_details = _order_details_answer(exec_result)
+    if order_details:
+        return order_details
     if exec_result.row_count == 1 and len(exec_result.columns) == 1:
         col = exec_result.columns[0]
         val = exec_result.rows[0][col]
@@ -381,7 +607,13 @@ def node_finalize_answer(state: GraphState) -> GraphState:
     analysis = analyze(state["question"], exec_result, chart_type)
 
     deterministic_narrative = _format_narrative(state, exec_result)
-    if exec_result.row_count == 1:
+    deterministic_special = (
+        _order_details_answer(exec_result)
+        or _rivals_answer(exec_result)
+        or _store_categories_answer(exec_result, state.get("question", ""))
+        or _product_revenue_answer(exec_result)
+    )
+    if exec_result.row_count == 1 or deterministic_special:
         narrative = deterministic_narrative
     else:
         llm_narrative = summarize_with_analyst(_LLM, state["question"], exec_result)
