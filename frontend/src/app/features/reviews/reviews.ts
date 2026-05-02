@@ -33,6 +33,18 @@ export class Reviews implements OnInit {
 
   readonly isIndividual = computed(() => this.auth.userRole() === 'INDIVIDUAL');
   readonly isAdmin = computed(() => this.auth.userRole() === 'ADMIN');
+  readonly currentUserId = computed(() => this.auth.currentUser()?.userId ?? null);
+
+  readonly errorMessage = signal('');
+
+  isOwnReview(review: Review): boolean {
+    const uid = this.currentUserId();
+    return uid != null && review.userId === uid;
+  }
+
+  canDelete(review: Review): boolean {
+    return this.isAdmin() || this.isOwnReview(review);
+  }
 
   ngOnInit() {
     this.loadReviews();
@@ -77,8 +89,21 @@ export class Reviews implements OnInit {
     });
   }
 
-  deleteReview(id: number) {
-    this.api.deleteReview(id).subscribe(() => this.loadReviews());
+  deleteReview(review: Review) {
+    if (!this.canDelete(review)) return;
+    const prompt = this.isOwnReview(review)
+      ? 'Delete your review? This cannot be undone.'
+      : `Delete this review by ${review.userName}? This cannot be undone.`;
+    if (!confirm(prompt)) return;
+    this.errorMessage.set('');
+    this.api.deleteReview(review.id).subscribe({
+      next: () => {
+        this.reviews.update(list => list.filter(r => r.id !== review.id));
+      },
+      error: (err) => {
+        this.errorMessage.set(err?.error?.message ?? 'Failed to delete review.');
+      },
+    });
   }
 
   starsDisplay(rating: number): string {

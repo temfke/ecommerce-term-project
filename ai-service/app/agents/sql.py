@@ -162,6 +162,104 @@ _PRODUCT_REVENUE_GRAPH_RE = re.compile(
     re.IGNORECASE,
 )
 
+# "every store's revenue" / "revenue of every store" / "revenue per store" /
+# "stores by revenue" — platform-wide aggregate broken out per store. Without
+# this branch the catch-all "revenue" check below returns a daily trend and
+# loses the per-store dimension the admin actually asked for.
+_PER_STORE_REVENUE_RE = re.compile(
+    # "every/all/each/per (the) store(s) ... revenue|sales|..."
+    r"\b(?:every|all|each|per)\s+(?:the\s+)?stores?(?:'s|s')?\b"
+    r".*\b(?:revenue|revenues|sales|income|earnings|profit)\b"
+    # "revenue ... by/per (the) store(s)" — quantifier optional here.
+    r"|\b(?:revenue|revenues|sales|income|earnings|profit)\b"
+    r".*\b(?:by|per)\s+(?:the\s+)?stores?\b"
+    # "revenue of/for every/all/each (the) store(s)"
+    r"|\b(?:revenue|revenues|sales|income|earnings|profit)\b"
+    r".*\b(?:of|for)\s+(?:every|all|each)\s+(?:the\s+)?stores?\b"
+    # "stores by/ranked by/ordered by/sorted by revenue|sales|..."
+    r"|\bstores?\s+(?:by|ranked\s+by|ordered\s+by|sorted\s+by)\s+(?:revenue|sales|income|earnings)\b"
+    # "how much did every/all/each store(s)/shop(s)/seller(s) make/earn", or
+    # the bare "how much did everyone/everybody make". The plain
+    # "how much did <X> make" pattern (further down) picks a single named
+    # store; the quantifier here signals an aggregate, so we route to the
+    # per-store SQL even when the literal word "revenue" is missing.
+    r"|\bhow\s+much\s+(?:did|does|has|have)\s+"
+    r"(?:"
+    r"(?:every|all|each|any)\s+(?:the\s+)?(?:stores?|shops?|sellers?)"
+    r"|everyone|everybody|anyone|anybody"
+    r")\s+"
+    r"(?:make|made|earn|earned|had\s+made|generate|generated)\b",
+    re.IGNORECASE,
+)
+
+# "monthly revenue" / "revenue by month" / "revenue per month" — per-month
+# grouping over the last year, NOT the daily 30-day trend the catch-all
+# returns when it sees the word "revenue".
+_MONTHLY_REVENUE_RE = re.compile(
+    r"\bmonthly\s+(?:revenue|revenues|sales|income|earnings|profit)\b"
+    r"|\b(?:revenue|revenues|sales|income|earnings|profit)\s+(?:by|per)\s+month\b"
+    r"|\bmonth-(?:over|on)-month\s+(?:revenue|sales|income)\b",
+    re.IGNORECASE,
+)
+
+# "yearly revenue" / "annual revenue" / "revenue by year" — same problem as
+# the monthly catch-all: without an explicit branch the catch-all collapses
+# the answer into a daily 30-day window.
+_YEARLY_REVENUE_RE = re.compile(
+    r"\b(?:yearly|annual)\s+(?:revenue|revenues|sales|income|earnings|profit)\b"
+    r"|\b(?:revenue|revenues|sales|income|earnings|profit)\s+(?:by|per)\s+year\b"
+    r"|\byear-(?:over|on)-year\s+(?:revenue|sales|income)\b",
+    re.IGNORECASE,
+)
+
+# "revenue of the platform" / "total platform revenue" / "platform-wide
+# revenue" / "platform's revenue" — answers a single platform-total scalar
+# instead of a daily trend. For non-admin roles the sanitizer scopes the
+# underlying orders so the user sees their own contribution rather than
+# leaking other tenants' totals.
+_PLATFORM_REVENUE_RE = re.compile(
+    r"\b(?:total\s+)?(?:revenue|revenues|sales|income|earnings|profit)"
+    r"\s+(?:of|for|from)\s+(?:the\s+)?(?:whole\s+|entire\s+)?platform\b"
+    r"|\bplatform(?:[-\s]?wide)?(?:'s)?\s+(?:total\s+)?(?:revenue|revenues|sales|income|earnings|profit)\b",
+    re.IGNORECASE,
+)
+
+# "revenue of <X>" / "<X>'s revenue" / "<X> store revenue" — single-store
+# total. Excluded: "every"/"all"/"each" (handled by _PER_STORE_REVENUE_RE).
+_REVENUE_OF_STORE_RE = re.compile(
+    r"\b(?:total\s+)?(?:revenue|revenues|sales|income|earnings|profit)"
+    r"\s+(?:of|for|from)\s+(?:the\s+)?"
+    r"(?P<store>[a-z0-9][\w '&.-]{1,80}?)"
+    r"(?:\s+(?:store|shop|seller))?\s*[?.!]*$",
+    re.IGNORECASE,
+)
+_STORE_REVENUE_INLINE_RE = re.compile(
+    r"\b(?P<store>[a-z0-9][\w '&.-]{1,80}?)"
+    r"(?:\s+(?:store|shop|seller)(?:'s|')?|(?:'s|'))"
+    r"\s+(?:total\s+)?(?:revenue|revenues|sales|income|earnings|profit)\b",
+    re.IGNORECASE,
+)
+# "how much did Aegean Outfitters make/earn/had made/generate"
+_HOW_MUCH_DID_STORE_MAKE_RE = re.compile(
+    r"\bhow\s+much\s+(?:did|does|has|have)\s+"
+    r"(?P<store>[a-z0-9][\w '&.-]{1,80}?)"
+    r"\s+(?:make|made|earn|earned|had\s+made|generate|generated)\b",
+    re.IGNORECASE,
+)
+
+# Aggregate quantifiers that can fool the named-store regex into capturing
+# them as a fake store name ("revenue of every store" → store="every").
+_AGGREGATE_STORE_TERMS = {
+    "every", "all", "each", "any", "every single",
+    "all the", "each the", "platform", "platforms", "platform-wide",
+    "everyone", "everybody", "anyone", "anybody",
+}
+# A captured store name beginning with one of these words is also rejected
+# ("all stores", "every store", "each shop") — these slip past
+# `_AGGREGATE_STORE_TERMS` because the cleaning step strips "store"/"shop"
+# but keeps the leading quantifier.
+_AGGREGATE_STORE_PREFIXES = ("every ", "all ", "each ", "any ")
+
 
 def _esc(s: str) -> str:
     """Escape a string for safe single-quoted SQL literal interpolation in the
@@ -259,6 +357,33 @@ def _category_from_best_store_question(question: str) -> Optional[str]:
     return _clean_named_entity(match.group("category"))
 
 
+def _store_name_from_revenue_question(question: str) -> Optional[str]:
+    """Extract a single store name from a revenue/earnings question.
+
+    Returns None when the phrase asks about every/all stores so the caller
+    can route to the platform-wide aggregate instead of a single-store
+    lookup. Also returns None when the cleaned name is a stop word
+    ("my", "your", etc.) that real store names won't match.
+    """
+    q = question.strip()
+    if _PER_STORE_REVENUE_RE.search(q):
+        return None
+    for pattern in (_REVENUE_OF_STORE_RE, _HOW_MUCH_DID_STORE_MAKE_RE, _STORE_REVENUE_INLINE_RE):
+        match = pattern.search(q)
+        if not match:
+            continue
+        store = _clean_named_entity(match.group("store"))
+        if not store:
+            continue
+        lowered = store.lower()
+        if lowered in _AGGREGATE_STORE_TERMS:
+            continue
+        if any(lowered.startswith(p) for p in _AGGREGATE_STORE_PREFIXES):
+            continue
+        return store
+    return None
+
+
 def _last_n_from_category_visualization(question: str, default: int = 10) -> int:
     match = _LAST_10_CATEGORY_VIS_RE.search(question)
     if not match:
@@ -301,6 +426,17 @@ def _is_high_confidence_stub_intent(question: str) -> bool:
     if _LAST_10_CATEGORY_VIS_RE.search(question):
         return True
     if _PRODUCT_REVENUE_GRAPH_RE.search(question) or _PROFIT_PRODUCT_RE.search(question):
+        return True
+    # Store-revenue intents (per-store / monthly / single-named-store) — the
+    # LLM otherwise tends to fall back to a daily revenue trend regardless of
+    # whether the user asked about stores or months.
+    if _PER_STORE_REVENUE_RE.search(question):
+        return True
+    if _PLATFORM_REVENUE_RE.search(question):
+        return True
+    if _MONTHLY_REVENUE_RE.search(question) or _YEARLY_REVENUE_RE.search(question):
+        return True
+    if _store_name_from_revenue_question(question):
         return True
     if _LAST_PURCHASE_PERCENT_RE.search(question):
         return True
@@ -838,6 +974,100 @@ def generate_sql_stub(question: str, role: Role, history: Optional[List[ChatTurn
             "JOIN orders o ON o.id = oi.order_id\n"
             "JOIN stores s ON s.id = o.store_id\n"
             "GROUP BY s.id ORDER BY revenue DESC LIMIT 5;"
+        )
+
+    # Per-store totals — admin's "total revenues of every store" lands here.
+    # Sanitizer scopes orders/stores for non-admin roles automatically, so the
+    # same SQL gives a corporate user their own stores' totals and an
+    # individual user the spend they've contributed to each store.
+    if _PER_STORE_REVENUE_RE.search(question):
+        return (
+            "SELECT s.name AS store, "
+            "COALESCE(SUM(oi.price * oi.quantity), 0) AS revenue\n"
+            "FROM stores s\n"
+            "LEFT JOIN orders o ON o.store_id = s.id\n"
+            "LEFT JOIN order_items oi ON oi.order_id = o.id\n"
+            "GROUP BY s.id, s.name\n"
+            "ORDER BY revenue DESC\n"
+            "LIMIT 100;"
+        )
+
+    # Platform-total revenue — single scalar. Sanitizer still scopes orders
+    # for non-admin roles, so corporate/individual users get their own slice.
+    if _PLATFORM_REVENUE_RE.search(question):
+        return (
+            "SELECT COALESCE(SUM(oi.price * oi.quantity), 0) AS total_revenue\n"
+            "FROM orders o\n"
+            "JOIN order_items oi ON oi.order_id = o.id;"
+        )
+
+    # Per-month grouping over the last year — the catch-all below would
+    # collapse "monthly revenue" into a daily 30-day trend instead. When the
+    # user also names a store ("monthly revenue of DS6 store") we filter by
+    # store name so the trend reflects that store, not the whole platform.
+    if _MONTHLY_REVENUE_RE.search(question):
+        named_store = _store_name_from_revenue_question(question)
+        if named_store:
+            return (
+                "SELECT DATE_FORMAT(o.created_at, '%Y-%m') AS month, "
+                "SUM(oi.price * oi.quantity) AS revenue\n"
+                "FROM orders o\n"
+                "JOIN order_items oi ON oi.order_id = o.id\n"
+                "JOIN stores s ON s.id = o.store_id\n"
+                f"WHERE LOWER(s.name) LIKE LOWER('%{_esc(named_store)}%')\n"
+                "  AND o.created_at >= NOW() - INTERVAL 12 MONTH\n"
+                "GROUP BY month\n"
+                "ORDER BY month;"
+            )
+        return (
+            "SELECT DATE_FORMAT(o.created_at, '%Y-%m') AS month, "
+            "SUM(oi.price * oi.quantity) AS revenue\n"
+            "FROM orders o\n"
+            "JOIN order_items oi ON oi.order_id = o.id\n"
+            "WHERE o.created_at >= NOW() - INTERVAL 12 MONTH\n"
+            "GROUP BY month\n"
+            "ORDER BY month;"
+        )
+
+    # Per-year grouping over the last 5 years. Same shape as monthly; filters
+    # by store name when paired with one ("yearly revenue of DS6 store").
+    if _YEARLY_REVENUE_RE.search(question):
+        named_store = _store_name_from_revenue_question(question)
+        if named_store:
+            return (
+                "SELECT YEAR(o.created_at) AS year, "
+                "SUM(oi.price * oi.quantity) AS revenue\n"
+                "FROM orders o\n"
+                "JOIN order_items oi ON oi.order_id = o.id\n"
+                "JOIN stores s ON s.id = o.store_id\n"
+                f"WHERE LOWER(s.name) LIKE LOWER('%{_esc(named_store)}%')\n"
+                "  AND o.created_at >= NOW() - INTERVAL 5 YEAR\n"
+                "GROUP BY year\n"
+                "ORDER BY year;"
+            )
+        return (
+            "SELECT YEAR(o.created_at) AS year, "
+            "SUM(oi.price * oi.quantity) AS revenue\n"
+            "FROM orders o\n"
+            "JOIN order_items oi ON oi.order_id = o.id\n"
+            "WHERE o.created_at >= NOW() - INTERVAL 5 YEAR\n"
+            "GROUP BY year\n"
+            "ORDER BY year;"
+        )
+
+    # Single-store revenue lookup — "total revenue of DS6 store",
+    # "Aegean Outfitters' revenue", "how much did Aegean Outfitters make".
+    revenue_store_name = _store_name_from_revenue_question(question)
+    if revenue_store_name:
+        return (
+            "SELECT s.name AS store, "
+            "COUNT(o.id) AS sales_count, "
+            "COALESCE(SUM(o.grand_total), 0) AS revenue\n"
+            "FROM stores s\n"
+            "LEFT JOIN orders o ON o.store_id = s.id\n"
+            f"WHERE LOWER(s.name) LIKE LOWER('%{_esc(revenue_store_name)}%')\n"
+            "GROUP BY s.id, s.name\n"
+            "ORDER BY revenue DESC LIMIT 5;"
         )
 
     if any(k in lower for k in ("trend", "revenue", "weekly", "monthly", "over time")):

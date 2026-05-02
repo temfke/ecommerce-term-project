@@ -171,8 +171,10 @@ _PUBLIC_STORE_CATALOG_RE = re.compile(
 
 _PRIVATE_METRIC_RE = re.compile(
     r"\b("
-    r"order|orders|purchase|purchases|bought|buy|sales?|sold|revenue|income"
-    r"|profit|margin|expense|expenses|spent|spending|customer|customers"
+    r"order|orders|purchase|purchases|bought|buy|sales?|sold"
+    r"|revenue|revenues|income|incomes|earnings"
+    r"|profit|profits|margin|margins|expense|expenses|spent|spending"
+    r"|customer|customers"
     r"|buyer|buyers|shipment|shipments|shipping|delivery|deliveries"
     r"|payment|payments|address|addresses|user|users|account|accounts"
     r")\b",

@@ -1,7 +1,23 @@
 {
   "permissions": {
     "allow": [
-      "Bash(.venv/Scripts/python.exe -m tests.test_sanitizer)"
+      "Bash(.venv/Scripts/python.exe -m tests.test_sanitizer)",
+      "Bash(powershell -Command \"Get-ChildItem -Recurse 'c:\\\\Projects\\\\ecommerce-analytics-platform\\\\ai-service\\\\app' | Select-Object FullName\")",
+      "Bash(powershell -Command \"Get-ChildItem -Recurse 'c:\\\\Projects\\\\ecommerce-analytics-platform' -Filter 'ChatService.java' | Select-Object FullName\")",
+      "Bash(powershell -Command \"Get-ChildItem -Recurse 'c:\\\\Projects\\\\ecommerce-analytics-platform\\\\backend\\\\src\\\\main\\\\java\\\\com\\\\ecommerce\\\\backend' -Filter 'AiServiceClient.java' | Select-Object FullName\")",
+      "Bash(powershell -Command \"Get-ChildItem 'c:\\\\Projects\\\\ecommerce-analytics-platform\\\\ai-service\\\\tests' | Select-Object FullName\")",
+      "Bash(./.venv/Scripts/python.exe -c \"from app.main import app; from app.graph import build_graph; g = build_graph\\(\\); print\\('graph compiled OK'\\)\")",
+      "Bash(./.venv/Scripts/python.exe -m pytest -q)",
+      "Bash(./.venv/Scripts/python.exe -m pip install -q pytest)",
+      "Bash(powershell -Command \"Get-ChildItem -Recurse 'c:\\\\Projects\\\\ecommerce-analytics-platform' -Include '*Review*.java','*review*.ts','*review*.html','*review*.scss' -File | Select-Object -First 50 FullName\")",
+      "Bash(powershell -Command \"Get-ChildItem -Recurse 'c:\\\\Projects\\\\ecommerce-analytics-platform\\\\backend' -Filter 'SecurityConfig*.java' | Select-Object FullName\")",
+      "Bash(git -C \"c:/Projects/ecommerce-analytics-platform\" log --oneline -10)",
+      "Bash(git -C \"c:/Projects/ecommerce-analytics-platform\" log --all --oneline -- \"**/review*\" \"**/Review*\")",
+      "Bash(git -C \"c:/Projects/ecommerce-analytics-platform\" show --stat 295b137)",
+      "Bash(git -C \"c:/Projects/ecommerce-analytics-platform\" show 295b137 -- \"frontend/src/app/features/reviews/reviews.html\")",
+      "Bash(git -C \"c:/Projects/ecommerce-analytics-platform\" show 295b137 -- \"frontend/src/app/features/reviews/reviews.ts\")",
+      "Bash(npx --yes tsc --noEmit -p tsconfig.json)",
+      "Bash(./.venv/Scripts/python.exe -c ' *)"
     ]
   }
 }

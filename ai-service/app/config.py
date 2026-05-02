@@ -17,6 +17,16 @@ class Settings:
     LLM_REQUEST_TIMEOUT_SECONDS: float = float(os.getenv("LLM_REQUEST_TIMEOUT_SECONDS", "8"))
     LLM_MAX_RETRIES: int = int(os.getenv("LLM_MAX_RETRIES", "0"))
 
+    # Multi-agent SQL self-correction loop. When MySQL rejects the LLM-generated
+    # query the error_agent feeds the failure back to the LLM and retries up to
+    # MAX_RETRIES times before giving up.
+    MAX_RETRIES: int = int(os.getenv("MAX_RETRIES", "3"))
+
+    # Per-user in-memory token bucket. Keeps the cost of an abusive client
+    # bounded even when an LLM provider has a generous free tier.
+    RATE_LIMIT_REQUESTS: int = int(os.getenv("RATE_LIMIT_REQUESTS", "20"))
+    RATE_LIMIT_WINDOW_SECONDS: int = int(os.getenv("RATE_LIMIT_WINDOW_SECONDS", "60"))
+
     HOST: str = os.getenv("HOST", "127.0.0.1")
     PORT: int = int(os.getenv("PORT", "8001"))
 

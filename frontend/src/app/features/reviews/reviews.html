@@ -6,6 +6,10 @@
     }
   </div>
 
+  @if (errorMessage()) {
+    <div class="error-alert" role="alert">{{ errorMessage() }}</div>
+  }
+
   @if (loading()) {
     <div class="loading" role="status"><span>Loading reviews...</span></div>
   } @else if (reviews().length === 0) {
@@ -52,8 +56,13 @@
                   {{ r.sentiment }}
                 </span>
               }
-              @if (isAdmin()) {
-                <button class="btn-icon danger" (click)="deleteReview(r.id)" aria-label="Delete review by {{ r.userName }}">Delete</button>
+              @if (canDelete(r)) {
+                <button
+                  class="btn-icon danger"
+                  (click)="deleteReview(r)"
+                  [attr.aria-label]="isOwnReview(r) ? 'Delete your review of ' + r.productName : 'Delete review by ' + r.userName">
+                  Delete
+                </button>
               }
             </div>
           </div>

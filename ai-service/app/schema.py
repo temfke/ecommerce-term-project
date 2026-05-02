@@ -83,3 +83,13 @@ Conventions:
 - reviews body column is named review_body (not body).
 - review.star_rating is 1..5.
 """.strip()
+
+
+def get_schema_description() -> str:
+    """Returns the static schema text the SQL agent embeds in its system prompt.
+
+    We keep this hand-written rather than introspecting MySQL at runtime so the
+    LLM only ever sees the columns we've decided are safe to expose — no
+    `password_hash`, no Stripe IDs, no email-verification tokens.
+    """
+    return DB_SCHEMA_DOC

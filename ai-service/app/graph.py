@@ -1,8 +1,9 @@
-"""LangGraph state machine wiring the agents from section 5.4 of the project spec.
+"""LangGraph state machine wiring the multi-agent flow:
 
-In step 2 the graph stops after SQL generation — it returns the SQL preview to
-the caller without executing it. Steps 4-6 will add: sanitizer, executor, analysis,
-visualization.
+    guardrails → sql → sanitize → execute
+                                    │
+                                    ├── ok → decide_visualization → visualize → analysis
+                                    └── error → error_agent → sanitize (retry, capped at MAX_RETRIES)
 """
 import re
 from typing import Optional, TypedDict
@@ -12,7 +13,10 @@ from langgraph.graph import StateGraph, START, END
 
 from .agents import guardrails, sql as sql_agent
 from .agents.analysis import summarize as summarize_with_analyst
+from .agents.error import fix_sql as fix_sql_with_llm
+from .agents.visualization import decide_chart_type, to_data_rows
 from .analyzer import analyze
+from .config import settings
 from .executor import ExecutionResult, execute as execute_sql
 from .llm import get_chat_model
 from .sanitizer import sanitize
@@ -37,6 +41,9 @@ class GraphState(TypedDict, total=False):
     sanitize_reason: str
     sanitize_category: str
     execution: ExecutionResult
+    retry_count: int
+    chart_type: str
+    chart_rows: list
     response: ChatResponse
 
 
@@ -276,19 +283,45 @@ def node_execute(state: GraphState) -> GraphState:
     return state
 
 
+def node_error_agent(state: GraphState) -> GraphState:
+    """Ask the LLM to repair the SQL using the MySQL error message.
+
+    The corrected SQL re-enters the sanitizer, so a fix that smuggles in a
+    DROP, SELECT *, or sensitive column is still rejected. We bump the retry
+    counter here so a transient LLM failure can't loop forever; the actual
+    cap is enforced by the conditional edge from `execute`.
+    """
+    state["retry_count"] = state.get("retry_count", 0) + 1
+    fixed = fix_sql_with_llm(
+        _LLM,
+        state["question"],
+        state["sql_preview"],
+        state["execution"].error or "Unknown database error",
+        state["role"],
+    )
+    if fixed:
+        state["sql_preview"] = fixed
+        # Clear any stale block flag from the previous sanitize pass so the
+        # retry isn't routed straight to blocked_sql.
+        state["sanitize_blocked"] = False
+    return state
+
+
 def node_execution_error(state: GraphState) -> GraphState:
     err = state["execution"].error or "Unknown database error"
     timed_out = "timed out" in err.lower() or "lost connection" in err.lower()
+    retries = state.get("retry_count", 0)
+    retry_suffix = f" Tried {retries} self-correction attempt(s)." if retries else ""
     state["response"] = ChatResponse(
         status="BLOCKED",
         narrative=(
             "I generated and sanitized the SQL, but the database query timed out "
             "before MySQL returned an answer. Try narrowing the date range or "
-            "asking for a smaller ranking."
+            "asking for a smaller ranking." + retry_suffix
             if timed_out else
             "I generated and sanitized the SQL, but the database refused to run it. "
             "This usually means the query asked for something that doesn't exist "
-            "(missing table, column, or join condition)."
+            "(missing table, column, or join condition)." + retry_suffix
         ),
         sql_preview=state["sql_preview"],
         guardrail=Guardrail(
@@ -298,36 +331,6 @@ def node_execution_error(state: GraphState) -> GraphState:
         ),
     )
     return state
-
-
-_DATE_LIKE_NAMES = {"day", "date", "month", "week", "year", "created_at", "ordered_at", "updated_at", "shipped_at"}
-_PIE_KEYWORDS = ("pie", "donut", "doughnut", "share", "split", "breakdown",
-                 "categoric", "categorical")
-
-
-def _detect_chart_type(columns: list[str], rows: list[dict], question: str = "") -> str:
-    if len(rows) <= 1 or len(columns) < 2:
-        return "NONE"
-    first_col = columns[0].lower()
-    if first_col in _DATE_LIKE_NAMES or "date" in first_col or first_col.endswith("_at"):
-        return "LINE"
-    q = (question or "").lower()
-    if any(k in q for k in _PIE_KEYWORDS):
-        return "PIE"
-    return "BAR"
-
-
-def _to_data_rows(columns: list[str], rows: list[dict]) -> list[DataRow]:
-    if len(columns) < 2 or not rows:
-        return []
-    label_col, value_col = columns[0], columns[1]
-    out: list[DataRow] = []
-    for r in rows:
-        try:
-            out.append(DataRow(label=str(r[label_col]), value=float(r[value_col])))
-        except (TypeError, ValueError):
-            continue
-    return out
 
 
 def _display_value(value) -> str:
@@ -599,10 +602,31 @@ def _jsonable(value):
     return value
 
 
-def node_finalize_answer(state: GraphState) -> GraphState:
+def node_decide_visualization(state: GraphState) -> GraphState:
+    """LLM (or deterministic fallback) picks one of BAR | LINE | PIE | NONE."""
+    state["chart_type"] = decide_chart_type(_LLM, state.get("question", ""), state["execution"])
+    return state
+
+
+def node_visualization_agent(state: GraphState) -> GraphState:
+    """Project the result rows into the (label, value) shape the frontend
+    chart component expects. Skipped when the previous node returned NONE."""
+    if state.get("chart_type") and state["chart_type"] != "NONE":
+        exec_result = state["execution"]
+        state["chart_rows"] = to_data_rows(exec_result.columns, exec_result.rows)
+    else:
+        state["chart_rows"] = []
+    return state
+
+
+def node_analysis_agent(state: GraphState) -> GraphState:
+    """Final assembly: title, bullets, insight, and the natural-language
+    narrative. Falls back to deterministic prose when the LLM is unavailable
+    or for single-row results where the deterministic phrasing is already
+    sharper than free-form summarization."""
     exec_result = state["execution"]
-    chart_type = _detect_chart_type(exec_result.columns, exec_result.rows, state.get("question", ""))
-    chart_rows = _to_data_rows(exec_result.columns, exec_result.rows) if chart_type != "NONE" else []
+    chart_type = state.get("chart_type", "NONE")
+    chart_rows = state.get("chart_rows") or []
     table = _to_table(exec_result) if exec_result.rows else None
     analysis = analyze(state["question"], exec_result, chart_type)
 
@@ -655,7 +679,19 @@ def _route_after_sanitize(state: GraphState) -> str:
 
 
 def _route_after_execute(state: GraphState) -> str:
-    return "finalize_answer" if state["execution"].ok else "execution_error"
+    if state["execution"].ok:
+        return "decide_visualization"
+    if state.get("retry_count", 0) < settings.MAX_RETRIES:
+        return "error_agent"
+    return "execution_error"
+
+
+def _route_after_error_agent(state: GraphState) -> str:
+    """If the LLM produced a fixed SQL, send it through the sanitizer again.
+    Otherwise we have no better SQL to try — surface the original error."""
+    if state.get("sql_preview"):
+        return "sanitize"
+    return "execution_error"
 
 
 def build_graph():
@@ -671,8 +707,11 @@ def build_graph():
     g.add_node("sanitize", node_sanitize)
     g.add_node("blocked_sql", node_sanitize_blocked)
     g.add_node("execute", node_execute)
+    g.add_node("error_agent", node_error_agent)
     g.add_node("execution_error", node_execution_error)
-    g.add_node("finalize_answer", node_finalize_answer)
+    g.add_node("decide_visualization", node_decide_visualization)
+    g.add_node("visualization_agent", node_visualization_agent)
+    g.add_node("analysis_agent", node_analysis_agent)
 
     g.add_edge(START, "guardrails")
     g.add_conditional_edges("guardrails", _route_after_guardrails, {
@@ -690,9 +729,16 @@ def build_graph():
         "blocked_sql": "blocked_sql",
     })
     g.add_conditional_edges("execute", _route_after_execute, {
-        "finalize_answer": "finalize_answer",
+        "decide_visualization": "decide_visualization",
+        "error_agent": "error_agent",
         "execution_error": "execution_error",
     })
+    g.add_conditional_edges("error_agent", _route_after_error_agent, {
+        "sanitize": "sanitize",
+        "execution_error": "execution_error",
+    })
+    g.add_edge("decide_visualization", "visualization_agent")
+    g.add_edge("visualization_agent", "analysis_agent")
     g.add_edge("greeting", END)
     g.add_edge("blocked", END)
     g.add_edge("sql_injection", END)
@@ -701,7 +747,7 @@ def build_graph():
     g.add_edge("explanation", END)
     g.add_edge("blocked_sql", END)
     g.add_edge("execution_error", END)
-    g.add_edge("finalize_answer", END)
+    g.add_edge("analysis_agent", END)
 
     return g.compile()
 
@@ -717,6 +763,7 @@ def run(req: ChatRequest) -> ChatResponse:
         "store_owner_id": req.store_owner_id,
         "first_name": req.first_name,
         "history": req.history or [],
+        "retry_count": 0,
     }
     final = _GRAPH.invoke(initial)
     return final["response"]
