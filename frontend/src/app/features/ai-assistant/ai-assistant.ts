@@ -22,19 +22,51 @@ export class AiAssistant implements OnInit, AfterViewChecked {
   readonly errorText = this.state.errorText;
   readonly hasMessages = this.state.hasMessages;
 
-  readonly suggestions = [
-    'How did sales change vs last month?',
-    'Which products are below 10 in stock?',
-    'Who are my top 5 customers?',
-    'What is the total value of pending orders?',
-    'Which category has the highest return rate?',
-    'Show this week\'s shipment status',
-    'List products that received 1-star reviews',
-    'Show monthly revenue as a chart',
-  ];
-
   readonly userName = computed(() => this.auth.currentUser()?.firstName ?? 'there');
   readonly userRole = computed(() => this.auth.userRole());
+
+  // Suggested prompts are tailored to what the role actually has access to.
+  // Admins ask platform-wide questions; corporate users ask about their own
+  // store(s) and their rivals; individuals ask about their own purchases.
+  private readonly adminSuggestions = [
+    'Total revenues of every store',
+    'Show monthly revenue',
+    'Top 5 selling products this month',
+    'Revenue of the platform',
+    'Top seller store in electronics category',
+    'List products that received 1-star reviews',
+    "Show this week's shipment status",
+    'How much did Aegean Outfitters make?',
+  ];
+  private readonly corporateSuggestions = [
+    'Total revenue of my store',
+    'Show monthly revenue',
+    'Top 5 selling products in my store this month',
+    'Which products are below 10 in stock?',
+    'Who are my rivals?',
+    'List products that received 1-star reviews',
+    "Show this week's shipment status",
+    'How did sales change vs last month?',
+  ];
+  private readonly individualSuggestions = [
+    'Show my last purchase details',
+    'What is the percentage of my last purchase in total value of my last 10 purchases?',
+    'Show the categoric breakdown of my last 10 purchases',
+    'Which categories did I spend the most on this month?',
+    'What are my recent orders?',
+    'Best seller store in electronics category',
+    'Show monthly revenue trend',
+    'Show my last 5 reviews',
+  ];
+
+  readonly suggestions = computed(() => {
+    switch (this.userRole()) {
+      case 'ADMIN': return this.adminSuggestions;
+      case 'CORPORATE': return this.corporateSuggestions;
+      case 'INDIVIDUAL': return this.individualSuggestions;
+      default: return this.individualSuggestions;
+    }
+  });
 
   readonly scopeLabel = computed(() => {
     const role = this.userRole();

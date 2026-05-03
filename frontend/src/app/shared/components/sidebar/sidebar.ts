@@ -36,7 +36,7 @@ export class Sidebar {
       roles: ['ADMIN', 'CORPORATE', 'INDIVIDUAL'],
       items: [
         { label: 'Dashboard', route: '/dashboard', icon: '📊', roles: ['ADMIN', 'CORPORATE'] },
-        { label: 'AI Assistant', route: '/ai-assistant', icon: '🤖', roles: ['ADMIN', 'CORPORATE', 'INDIVIDUAL'], badge: 'New' },
+        { label: 'AI Assistant', route: '/ai-assistant', icon: '🤖', roles: ['ADMIN', 'CORPORATE', 'INDIVIDUAL'] },
         { label: 'Analytics', route: '/analytics', icon: '📈', roles: ['ADMIN', 'CORPORATE'] },
         { label: 'Products', route: '/products', icon: '📦', roles: ['ADMIN', 'CORPORATE', 'INDIVIDUAL'] },
         { label: 'Cart', route: '/cart', icon: '🛒', roles: ['INDIVIDUAL'] },

@@ -50,8 +50,17 @@ _LAST_PURCHASE_PERCENT_RE = re.compile(
     # (percentage/percent/share) but not around the literal `%`, so `what %`
     # is matched without a trailing word boundary.
     r"(?:\b(?:percentage|percent|share)\b|what\s*%|%\s*of)"
-    r".*\b(?:this|my|the|last|latest|most\s+recent)\s+(?:purchase|order)\b"
-    r".*\b(?:all|every|total|(?:last|recent|past)\s+\d{1,3})\s+(?:purchases?|orders?)\b",
+    r".*"
+    r"(?:"
+    # Original numerator: "this / my / the / last / latest / most recent" purchase or order
+    r"\b(?:this|my|the|last|latest|most\s+recent)\s+(?:purchase|order)\b"
+    # Pronoun follow-up: when the previous turn established a "last purchase"
+    # / "last item" / "last order", a follow-up may say "its revenue",
+    # "its value", "that revenue", "it's price" etc. Treat that as the same
+    # numerator so the percentage SQL still fires.
+    r"|\b(?:its|it's|that|this)\s+(?:revenue|purchase|order|sale|value|price|amount|total|grand[-\s]?total)\b"
+    r")"
+    r".*\b(?:all|every|total|(?:last|recent|past)\s+\d{1,3})\s+(?:purchases?|orders?|sales?)\b",
     re.IGNORECASE,
 )
 
@@ -247,6 +256,83 @@ _HOW_MUCH_DID_STORE_MAKE_RE = re.compile(
     re.IGNORECASE,
 )
 
+# "revenue of my store" / "my store's revenue" — a corporate user's total
+# revenue scalar. The named-store extractor would clean "my store" down to
+# nothing, falling through to the daily-trend catch-all; this pattern routes
+# it to the platform-total SQL which the sanitizer already scopes per-role.
+_OWN_STORE_REVENUE_RE = re.compile(
+    r"\b(?:total\s+)?(?:revenue|revenues|sales|income|earnings|profit)"
+    r"\s+(?:of|for|from)\s+(?:my|our)\s+(?:own\s+)?stores?\b"
+    r"|\b(?:my|our)\s+(?:own\s+)?stores?(?:'s|s')?\s+"
+    r"(?:total\s+)?(?:revenue|revenues|sales|income|earnings|profit)\b",
+    re.IGNORECASE,
+)
+
+# "1-star review", "five star reviews", "star rating of 3" — extract the
+# star count so the reviews SQL can filter by rating.
+_STAR_RATING_RE = re.compile(
+    r"\b(?P<n1>[1-5])[-\s]?star(?:s|\srated)?\b"
+    r"|\b(?P<word>one|two|three|four|five)[-\s]?star(?:s|\srated)?\b"
+    r"|\bstar(?:[-\s]?rating)?\s*(?:=|of|is)?\s*(?P<n2>[1-5])\b",
+    re.IGNORECASE,
+)
+_STAR_WORD_TO_INT = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5}
+
+# "last 5 reviews", "recent 10 reviews" — extract N for the LIMIT.
+_LAST_N_REVIEWS_RE = re.compile(
+    r"\b(?:last|recent|latest|past|top)\s+(\d{1,3})\s+review",
+    re.IGNORECASE,
+)
+
+# Low-stock inventory questions. Must be checked before the generic
+# "products + top" catch-all, which otherwise routes these to a top-selling
+# products query (the opposite of what was asked).
+_LOW_STOCK_RE = re.compile(
+    r"\b(?:product|products|item|items|inventory|sku|skus)\b"
+    r".*\b(?:below|under|less\s+than|fewer\s+than|<)\s*(?P<n>\d{1,5})\s+"
+    r"(?:in\s+stock|stock|inventory|units?)?"
+    r"|\blow\s+(?:on\s+)?(?:stock|inventory)\b"
+    r"|\bout\s+of\s+stock\b"
+    r"|\bstock\s+(?:below|under|less\s+than|fewer\s+than|<)\s*(?P<n2>\d{1,5})",
+    re.IGNORECASE,
+)
+
+# "this week", "today", "yesterday", "last week" — date-window filters
+# applied to shipment / order questions so we don't return a 20-row
+# default that ignores the time window the user asked about.
+_THIS_WEEK_RE = re.compile(r"\bthis\s+week\b", re.IGNORECASE)
+_LAST_WEEK_RE = re.compile(r"\b(?:last|past|previous|prior)\s+week\b", re.IGNORECASE)
+_TODAY_RE = re.compile(r"\btoday\b", re.IGNORECASE)
+_YESTERDAY_RE = re.compile(r"\byesterday\b", re.IGNORECASE)
+
+# "without 0 revenue", "non-zero revenue", "exclude zeroes", "skip zero" —
+# qualifier the user can append to any aggregate to drop empty buckets from
+# the result (and, knock-on, get a donut instead of a bar when the result
+# now fits within the PIE row threshold).
+_EXCLUDE_ZERO_RE = re.compile(
+    r"\b(?:without|excluding|exclude|skip|skipping|ignore|ignoring|drop|dropping|"
+    r"omit|omitting|filter\s+out|no)\s+"
+    # Allow up to 3 connector words between the negation and the zero token,
+    # so "without counting 0", "exclude any 0", "skip rows with zero" all match.
+    r"(?:\w+\s+){0,3}"
+    r"(?:0|zero(?:s|es)?|null|empty|none)\b"
+    r"|\b(?:non[-\s]?zero|not\s+zero|greater\s+than\s+0|>\s*0)\b"
+    r"|\bonly\s+(?:rows?|entries?|stores?|months?|years?)?\s*with\s+revenue\b",
+    re.IGNORECASE,
+)
+
+# "How did sales change vs last month?" — comparison query. Catches both
+# explicit comparators ("vs", "versus", "compared to") and the conversational
+# "how did sales change" framing.
+_SALES_VS_LAST_MONTH_RE = re.compile(
+    r"\b(?:sales|revenue|revenues|income|earnings)\b"
+    r".*\b(?:vs|versus|compared\s+to|compare\s+with|against)\b"
+    r".*\b(?:last|previous|prior)\s+month\b"
+    r"|\bhow\s+(?:did|does|has|have)\s+(?:sales|revenue|earnings|income)\s+"
+    r"(?:change|compare|differ|move|trend)\b",
+    re.IGNORECASE,
+)
+
 # Aggregate quantifiers that can fool the named-store regex into capturing
 # them as a fake store name ("revenue of every store" → store="every").
 _AGGREGATE_STORE_TERMS = {
@@ -357,6 +443,39 @@ def _category_from_best_store_question(question: str) -> Optional[str]:
     return _clean_named_entity(match.group("category"))
 
 
+def _star_rating_from_question(question: str) -> Optional[int]:
+    """Return the requested star count (1..5), or None if unspecified."""
+    match = _STAR_RATING_RE.search(question)
+    if not match:
+        return None
+    n = match.group("n1") or match.group("n2")
+    if n:
+        return int(n)
+    word = match.group("word")
+    if word:
+        return _STAR_WORD_TO_INT.get(word.lower())
+    return None
+
+
+def _last_n_reviews_from_question(question: str, default: int = 20) -> int:
+    """Pull the N out of "last 5 reviews" / "recent 10 reviews"."""
+    match = _LAST_N_REVIEWS_RE.search(question)
+    if not match:
+        return default
+    return max(1, min(int(match.group(1)), 100))
+
+
+def _stock_threshold_from_question(question: str, default: int = 10) -> int:
+    """Pull the threshold out of "below 10 in stock" / "stock < 5"."""
+    match = _LOW_STOCK_RE.search(question)
+    if not match:
+        return default
+    raw = match.group("n") or match.group("n2")
+    if not raw:
+        return default
+    return max(0, min(int(raw), 1_000_000))
+
+
 def _store_name_from_revenue_question(question: str) -> Optional[str]:
     """Extract a single store name from a revenue/earnings question.
 
@@ -432,11 +551,15 @@ def _is_high_confidence_stub_intent(question: str) -> bool:
     # whether the user asked about stores or months.
     if _PER_STORE_REVENUE_RE.search(question):
         return True
-    if _PLATFORM_REVENUE_RE.search(question):
+    if _PLATFORM_REVENUE_RE.search(question) or _OWN_STORE_REVENUE_RE.search(question):
         return True
     if _MONTHLY_REVENUE_RE.search(question) or _YEARLY_REVENUE_RE.search(question):
         return True
     if _store_name_from_revenue_question(question):
+        return True
+    if _LOW_STOCK_RE.search(question):
+        return True
+    if _SALES_VS_LAST_MONTH_RE.search(question):
         return True
     if _LAST_PURCHASE_PERCENT_RE.search(question):
         return True
@@ -744,8 +867,12 @@ def generate_sql_stub(question: str, role: Role, history: Optional[List[ChatTurn
 
     if _LAST_10_CATEGORY_VIS_RE.search(question):
         n = _last_n_from_category_visualization(question)
+        # LEFT JOIN + COALESCE so products with NULL or unmatched category_id
+        # surface as an "Uncategorized" bucket instead of being dropped from
+        # the chart (otherwise a single-category result hides the rest).
         return (
-            "SELECT c.name AS category, SUM(oi.price * oi.quantity) AS spent\n"
+            "SELECT COALESCE(c.name, 'Uncategorized') AS category, "
+            "SUM(oi.price * oi.quantity) AS spent\n"
             "FROM (\n"
             "  SELECT id\n"
             "  FROM orders\n"
@@ -754,21 +881,24 @@ def generate_sql_stub(question: str, role: Role, history: Optional[List[ChatTurn
             ") recent_orders\n"
             "JOIN order_items oi ON oi.order_id = recent_orders.id\n"
             "JOIN products p ON p.id = oi.product_id\n"
-            "JOIN categories c ON c.id = p.category_id\n"
-            "GROUP BY c.id, c.name\n"
+            "LEFT JOIN categories c ON c.id = p.category_id\n"
+            "GROUP BY category\n"
             "ORDER BY spent DESC\n"
             "LIMIT 100;"
         )
 
     if _EXPENSE_CATEGORY_RE.search(question):
+        # Same LEFT JOIN + COALESCE treatment so an uncategorized purchase
+        # this month doesn't silently disappear from the totals.
         return (
-            "SELECT c.name AS category, SUM(oi.price * oi.quantity) AS spent\n"
+            "SELECT COALESCE(c.name, 'Uncategorized') AS category, "
+            "SUM(oi.price * oi.quantity) AS spent\n"
             "FROM orders o\n"
             "JOIN order_items oi ON oi.order_id = o.id\n"
             "JOIN products p ON p.id = oi.product_id\n"
-            "JOIN categories c ON c.id = p.category_id\n"
+            "LEFT JOIN categories c ON c.id = p.category_id\n"
             "WHERE o.created_at >= DATE_FORMAT(NOW(), '%Y-%m-01')\n"
-            "GROUP BY c.id, c.name\n"
+            "GROUP BY category\n"
             "ORDER BY spent DESC\n"
             "LIMIT 1;"
         )
@@ -909,6 +1039,35 @@ def generate_sql_stub(question: str, role: Role, history: Optional[List[ChatTurn
             f"GROUP BY s.id, s.name ORDER BY units DESC LIMIT {store_limit};"
         )
 
+    # Low-stock inventory — must come BEFORE the "top + products" branch,
+    # which would otherwise hijack "products below 10 in stock" and return
+    # the top-selling list (the opposite of what was asked).
+    if _LOW_STOCK_RE.search(question):
+        threshold = _stock_threshold_from_question(question)
+        return (
+            "SELECT p.name AS product, p.sku, p.stock_quantity, "
+            "COALESCE(s.name, '') AS store\n"
+            "FROM products p\n"
+            "LEFT JOIN stores s ON s.id = p.store_id\n"
+            f"WHERE p.stock_quantity < {threshold} AND p.active = TRUE\n"
+            "ORDER BY p.stock_quantity ASC\n"
+            "LIMIT 100;"
+        )
+
+    # "How did sales change vs last month?" — comparison query: this month
+    # vs the previous month, plus an absolute-delta column.
+    if _SALES_VS_LAST_MONTH_RE.search(question):
+        return (
+            "SELECT DATE_FORMAT(o.created_at, '%Y-%m') AS month, "
+            "SUM(oi.price * oi.quantity) AS revenue, "
+            "COUNT(DISTINCT o.id) AS orders\n"
+            "FROM orders o\n"
+            "JOIN order_items oi ON oi.order_id = o.id\n"
+            "WHERE o.created_at >= DATE_FORMAT(NOW() - INTERVAL 1 MONTH, '%Y-%m-01')\n"
+            "GROUP BY month\n"
+            "ORDER BY month;"
+        )
+
     if (
         any(k in lower for k in ("most sold item", "most-sold item", "most sold product", "best selling product", "best-selling product"))
         and "top" not in lower
@@ -981,6 +1140,10 @@ def generate_sql_stub(question: str, role: Role, history: Optional[List[ChatTurn
     # same SQL gives a corporate user their own stores' totals and an
     # individual user the spend they've contributed to each store.
     if _PER_STORE_REVENUE_RE.search(question):
+        having = (
+            "HAVING SUM(oi.price * oi.quantity) > 0\n"
+            if _EXCLUDE_ZERO_RE.search(question) else ""
+        )
         return (
             "SELECT s.name AS store, "
             "COALESCE(SUM(oi.price * oi.quantity), 0) AS revenue\n"
@@ -988,13 +1151,16 @@ def generate_sql_stub(question: str, role: Role, history: Optional[List[ChatTurn
             "LEFT JOIN orders o ON o.store_id = s.id\n"
             "LEFT JOIN order_items oi ON oi.order_id = o.id\n"
             "GROUP BY s.id, s.name\n"
+            f"{having}"
             "ORDER BY revenue DESC\n"
             "LIMIT 100;"
         )
 
     # Platform-total revenue — single scalar. Sanitizer still scopes orders
     # for non-admin roles, so corporate/individual users get their own slice.
-    if _PLATFORM_REVENUE_RE.search(question):
+    # "revenue of my/our store" maps here too: the same SQL with corporate
+    # scope injection answers "total revenue of my store" with one number.
+    if _PLATFORM_REVENUE_RE.search(question) or _OWN_STORE_REVENUE_RE.search(question):
         return (
             "SELECT COALESCE(SUM(oi.price * oi.quantity), 0) AS total_revenue\n"
             "FROM orders o\n"
@@ -1007,6 +1173,10 @@ def generate_sql_stub(question: str, role: Role, history: Optional[List[ChatTurn
     # store name so the trend reflects that store, not the whole platform.
     if _MONTHLY_REVENUE_RE.search(question):
         named_store = _store_name_from_revenue_question(question)
+        having = (
+            "HAVING SUM(oi.price * oi.quantity) > 0\n"
+            if _EXCLUDE_ZERO_RE.search(question) else ""
+        )
         if named_store:
             return (
                 "SELECT DATE_FORMAT(o.created_at, '%Y-%m') AS month, "
@@ -1017,6 +1187,7 @@ def generate_sql_stub(question: str, role: Role, history: Optional[List[ChatTurn
                 f"WHERE LOWER(s.name) LIKE LOWER('%{_esc(named_store)}%')\n"
                 "  AND o.created_at >= NOW() - INTERVAL 12 MONTH\n"
                 "GROUP BY month\n"
+                f"{having}"
                 "ORDER BY month;"
             )
         return (
@@ -1026,6 +1197,7 @@ def generate_sql_stub(question: str, role: Role, history: Optional[List[ChatTurn
             "JOIN order_items oi ON oi.order_id = o.id\n"
             "WHERE o.created_at >= NOW() - INTERVAL 12 MONTH\n"
             "GROUP BY month\n"
+            f"{having}"
             "ORDER BY month;"
         )
 
@@ -1033,6 +1205,10 @@ def generate_sql_stub(question: str, role: Role, history: Optional[List[ChatTurn
     # by store name when paired with one ("yearly revenue of DS6 store").
     if _YEARLY_REVENUE_RE.search(question):
         named_store = _store_name_from_revenue_question(question)
+        having = (
+            "HAVING SUM(oi.price * oi.quantity) > 0\n"
+            if _EXCLUDE_ZERO_RE.search(question) else ""
+        )
         if named_store:
             return (
                 "SELECT YEAR(o.created_at) AS year, "
@@ -1043,6 +1219,7 @@ def generate_sql_stub(question: str, role: Role, history: Optional[List[ChatTurn
                 f"WHERE LOWER(s.name) LIKE LOWER('%{_esc(named_store)}%')\n"
                 "  AND o.created_at >= NOW() - INTERVAL 5 YEAR\n"
                 "GROUP BY year\n"
+                f"{having}"
                 "ORDER BY year;"
             )
         return (
@@ -1052,6 +1229,7 @@ def generate_sql_stub(question: str, role: Role, history: Optional[List[ChatTurn
             "JOIN order_items oi ON oi.order_id = o.id\n"
             "WHERE o.created_at >= NOW() - INTERVAL 5 YEAR\n"
             "GROUP BY year\n"
+            f"{having}"
             "ORDER BY year;"
         )
 
@@ -1114,17 +1292,43 @@ def generate_sql_stub(question: str, role: Role, history: Optional[List[ChatTurn
         )
 
     if any(k in lower for k in ("review", "rating", "star")):
+        star = _star_rating_from_question(question)
+        n = _last_n_reviews_from_question(question)
+        star_clause = f"WHERE r.star_rating = {star}\n" if star else ""
         return (
             "SELECT p.name, r.star_rating, r.review_body, r.created_at\n"
             "FROM reviews r JOIN products p ON p.id = r.product_id\n"
-            "ORDER BY r.created_at DESC LIMIT 20;"
+            f"{star_clause}"
+            f"ORDER BY r.created_at DESC LIMIT {n};"
         )
 
     if "shipment" in lower or "tracking" in lower or "delivery" in lower:
+        if _THIS_WEEK_RE.search(question):
+            date_clause = (
+                "WHERE s.created_at >= "
+                "DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) DAY)\n"
+            )
+        elif _LAST_WEEK_RE.search(question):
+            date_clause = (
+                "WHERE s.created_at >= "
+                "DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) + 7 DAY)\n"
+                "  AND s.created_at < "
+                "DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) DAY)\n"
+            )
+        elif _TODAY_RE.search(question):
+            date_clause = "WHERE DATE(s.created_at) = CURDATE()\n"
+        elif _YESTERDAY_RE.search(question):
+            date_clause = (
+                "WHERE DATE(s.created_at) = DATE_SUB(CURDATE(), INTERVAL 1 DAY)\n"
+            )
+        else:
+            date_clause = ""
         return (
-            "SELECT s.tracking_id, s.carrier, s.status, s.estimated_delivery\n"
+            "SELECT s.tracking_id, s.carrier, s.status, s.estimated_delivery, "
+            "s.created_at\n"
             "FROM shipments s JOIN orders o ON o.id = s.order_id\n"
-            "ORDER BY s.created_at DESC LIMIT 20;"
+            f"{date_clause}"
+            "ORDER BY s.created_at DESC LIMIT 100;"
         )
 
     if "count" in lower:

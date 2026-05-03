@@ -28,7 +28,7 @@
         <div class="suggestions">
           <p class="suggestions-label">Suggested questions</p>
           <div class="suggestion-grid">
-            @for (s of suggestions; track s) {
+            @for (s of suggestions(); track s) {
               <button type="button" class="suggestion-chip" (click)="useSuggestion(s)">
                 {{ s }}
               </button>

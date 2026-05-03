@@ -120,11 +120,21 @@ _SQL_EXPORT_RE = re.compile(
 # instead of running another SQL pass, since the user is asking about methodology.
 _EXPLAIN_RE = re.compile(
     r"\b("
+    # "how did you calculate / compute / know / work out / determine ..."
+    # "know" and "work out" cover the conversational phrasings users actually
+    # type ("how did you know this?", "how did you work that out?"). The slash
+    # forms ("how did you know/calculate this") match because at least one of
+    # the alternation tokens is hit.
     r"how\s+(did|do)\s+(you|we|this|that)\s+"
-    r"(calculate|compute|derive|figure|find|get|arrive|come\s+up|make)"
-    r"|how\s+was\s+(this|that|it)\s+(calculated|computed|derived|figured)"
-    r"|explain\s+(your|the|this|that)\s+(calculation|formula|computation|method|methodology|math)"
-    r"|what(?:'s|\s+is)\s+(the|your)\s+(formula|calculation|methodology|method)"
+    r"(calculate|compute|derive|figure|find|get|arrive|come\s+up|make|know|"
+    r"knew|work\s+out|worked\s+out|determine|determined|do|did)"
+    r"|how\s+was\s+(this|that|it)\s+(calculated|computed|derived|figured|determined|made|done)"
+    r"|explain\s+(your|the|this|that)\s+"
+    r"(calculation|formula|computation|method|methodology|math|reasoning|logic|process|steps?|operations?)"
+    r"|what(?:'s|\s+is)\s+(the|your)\s+"
+    r"(formula|calculation|methodology|method|reasoning|logic|process|operations?|steps?)"
+    # "what operations did you do?", "what steps did you take?"
+    r"|what\s+(operations?|steps?|process|method|formula|calculation)\s+(did|do)\s+(you|we)"
     r"|where\s+(does|did)\s+(this|that)\s+(number|figure|percentage|value)\s+come\s+from"
     r")\b",
     re.IGNORECASE,

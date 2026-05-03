@@ -1,5 +1,6 @@
-import { Injectable, computed, inject, signal } from '@angular/core';
+import { Injectable, computed, effect, inject, signal } from '@angular/core';
 import { Api } from '../../core/services/api';
+import { Auth } from '../../core/services/auth';
 import { ChatResponse, ChatTurn } from '../../core/models/chat.model';
 
 export interface ChatMessage {
@@ -11,10 +12,17 @@ export interface ChatMessage {
 
 /** Singleton (`providedIn: 'root'`) so the messages and draft survive route
  *  navigation. On first use it loads persisted history from the backend, then
- *  every send/clear writes through both the local signal and the backend. */
+ *  every send/clear writes through both the local signal and the backend.
+ *
+ *  Chat state is per-user: when the authenticated user changes (login / logout
+ *  / account swap) the in-memory messages are wiped so a previous user's
+ *  history can never appear in the next user's session, even without a page
+ *  reload. The backend is the source of truth and re-loads history scoped to
+ *  the new user's id when the AI assistant page mounts again. */
 @Injectable({ providedIn: 'root' })
 export class ChatStateService {
   private readonly api = inject(Api);
+  private readonly auth = inject(Auth);
 
   readonly messages = signal<ChatMessage[]>([]);
   readonly draft = signal('');
@@ -25,9 +33,23 @@ export class ChatStateService {
   readonly hasMessages = computed(() => this.messages().length > 0);
 
   private nextId = 1;
+  private activeUserId: number | null = null;
+
+  constructor() {
+    // React to login / logout / account swap. Comparing user ids covers the
+    // case where the same singleton instance sees two different signed-in
+    // accounts back to back without a full page reload.
+    effect(() => {
+      const uid = this.auth.currentUser()?.userId ?? null;
+      if (uid === this.activeUserId) return;
+      this.activeUserId = uid;
+      this.resetState();
+    });
+  }
 
   ensureHistoryLoaded(): void {
     if (this.historyLoaded()) return;
+    if (!this.auth.isAuthenticated()) return;
     this.historyLoaded.set(true);
     this.api.getChatHistory().subscribe({
       next: (entries) => {
@@ -72,6 +94,14 @@ export class ChatStateService {
         this.loading.set(false);
       },
     });
+  }
+
+  private resetState(): void {
+    this.messages.set([]);
+    this.draft.set('');
+    this.errorText.set('');
+    this.historyLoaded.set(false);
+    this.loading.set(false);
   }
 
   private append(m: ChatMessage): void {

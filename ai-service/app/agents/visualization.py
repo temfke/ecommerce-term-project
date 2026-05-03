@@ -27,6 +27,12 @@ _PIE_KEYWORDS = (
     "pie", "donut", "doughnut", "share", "split", "breakdown",
     "categoric", "categorical",
 )
+# Above this row count a donut becomes a ring of unreadable thin slivers;
+# bar is clearer. Below this it almost always reads better as a part-of-whole.
+_PIE_MAX_ROWS_DEFAULT = 6
+# When the user explicitly invoked a pie keyword we tolerate a few more
+# slices before falling back to BAR.
+_PIE_MAX_ROWS_KEYWORD = 10
 _VALID_CHART_TYPES = {"BAR", "LINE", "PIE", "NONE"}
 
 
@@ -37,9 +43,12 @@ Pick exactly one of: BAR, LINE, PIE, NONE.
 Rules:
   - NONE: a single-row scalar result, or fewer than two columns — nothing to chart.
   - LINE: the first column is a date or time bucket (day/week/month/year).
-  - PIE: the user explicitly asked for a share / breakdown / pie / donut, and
-    the result is a small number of categorical rows (<= 8).
-  - BAR: everything else with two+ columns and multiple rows.
+  - PIE: a small categorical result (2 to 6 rows) that reads as parts of a
+    whole — category breakdowns, store/status share, top-N rankings where
+    proportions matter. Tolerate up to 8 rows when the user explicitly says
+    pie / donut / share / split / breakdown.
+  - BAR: more than 8 rows, or any result where exact magnitudes matter more
+    than proportions and the donut would be unreadable.
 
 Respond with ONLY a JSON object: {"chart_type": "BAR"} (or LINE / PIE / NONE).
 """
@@ -52,7 +61,14 @@ def _deterministic_chart_type(columns: list[str], rows: list[dict], question: st
     if first_col in _DATE_LIKE_NAMES or "date" in first_col or first_col.endswith("_at"):
         return "LINE"
     q = (question or "").lower()
-    if any(k in q for k in _PIE_KEYWORDS):
+    n = len(rows)
+    # Explicit keyword bias: still PIE for up to 10 slices.
+    if any(k in q for k in _PIE_KEYWORDS) and n <= _PIE_MAX_ROWS_KEYWORD:
+        return "PIE"
+    # Default: small categorical results read better as a donut. The user
+    # asked us to prefer donut wherever it makes visual sense, not just
+    # when they spelled "pie" or "breakdown" in the question.
+    if 2 <= n <= _PIE_MAX_ROWS_DEFAULT:
         return "PIE"
     return "BAR"
 
