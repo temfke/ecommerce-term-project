@@ -190,7 +190,7 @@
               <p class="answer-insight">{{ m.payload?.insight }}</p>
             }
 
-            @if (m.payload?.sqlPreview) {
+            @if (m.payload?.sqlPreview && userRole() === 'ADMIN') {
               <details class="sql-preview">
                 <summary>View generated SQL</summary>
                 <pre><code>{{ m.payload?.sqlPreview }}</code></pre>
